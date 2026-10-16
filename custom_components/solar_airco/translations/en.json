@@ -1,0 +1,115 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solar Airco",
+        "description": "Choose the sensors used to decide when the airco's may heat. Add the airco's afterwards via the integration's \"Add airco\" button.",
+        "data": {
+          "pv_power_entity": "PV production (W)",
+          "base_load_entity": "House consumption without airco's (W)",
+          "fallback_base_load_w": "Fallback house consumption (W)",
+          "forecast_entities": "Solcast forecast sensors",
+          "forecast_field": "Forecast estimate",
+          "forecast_weight": "Weight of the forecast vs. actual PV"
+        },
+        "data_description": {
+          "base_load_entity": "Used to calculate the solar surplus. Leave empty to use the fallback value.",
+          "forecast_entities": "Sensors with a detailedForecast attribute (Solcast: today, tomorrow).",
+          "forecast_weight": "0 = only actual PV production, 1 = only the forecast."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Solar Airco",
+        "data": {
+          "pv_power_entity": "PV production (W)",
+          "base_load_entity": "House consumption without airco's (W)",
+          "fallback_base_load_w": "Fallback house consumption (W)",
+          "forecast_entities": "Solcast forecast sensors",
+          "forecast_field": "Forecast estimate",
+          "forecast_weight": "Weight of the forecast vs. actual PV"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "airco": {
+      "initiate_flow": {
+        "user": "Add airco",
+        "reconfigure": "Reconfigure airco"
+      },
+      "entry_type": "Airco",
+      "step": {
+        "user": {
+          "title": "Add airco",
+          "data": {
+            "name": "Name",
+            "climate_entity": "Climate entity",
+            "power_max": "Maximum power (W)",
+            "power_idle": "Power near the desired temperature (W)"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure airco",
+          "data": {
+            "name": "Name",
+            "climate_entity": "Climate entity",
+            "power_max": "Maximum power (W)",
+            "power_idle": "Power near the desired temperature (W)"
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "Airco updated"
+      }
+    }
+  },
+  "selector": {
+    "forecast_field": {
+      "options": {
+        "pv_estimate": "Expected (P50)",
+        "pv_estimate10": "Cautious (P10)",
+        "pv_estimate90": "Optimistic (P90)"
+      }
+    }
+  },
+  "entity": {
+    "number": {
+      "min_temp": { "name": "Minimum temperature" },
+      "desired_temp": { "name": "Desired temperature" },
+      "priority": { "name": "Priority" }
+    },
+    "time": {
+      "start": { "name": "Heating window start" },
+      "end": { "name": "Heating window end" }
+    },
+    "switch": {
+      "enabled": { "name": "Enabled" },
+      "dry_run": { "name": "Dry run" },
+      "airco_enabled": { "name": "Controlled" }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": { "active": "Active", "dry_run": "Dry run", "disabled": "Disabled" }
+      },
+      "total_power": { "name": "Estimated airco power" },
+      "pv_effective": { "name": "Effective PV power" },
+      "surplus": { "name": "Solar surplus" },
+      "airco_power": { "name": "Estimated power" },
+      "airco_mode": {
+        "name": "Mode",
+        "state": {
+          "solar": "Solar",
+          "comfort": "Comfort (minimum)",
+          "off": "Off",
+          "hold": "Waiting",
+          "unmanaged": "Not managed"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solar Airco",
+        "description": "Kies de sensoren waarmee bepaald wordt wanneer de airco's mogen verwarmen. Voeg de airco's daarna toe via de knop \"Airco toevoegen\".",
+        "data": {
+          "pv_power_entity": "PV-productie (W)",
+          "base_load_entity": "Huisverbruik zonder airco's (W)",
+          "fallback_base_load_w": "Terugvalwaarde huisverbruik (W)",
+          "forecast_entities": "Solcast-voorspellingssensoren",
+          "forecast_field": "Voorspellingsschatting",
+          "forecast_weight": "Gewicht van voorspelling t.o.v. actuele PV"
+        },
+        "data_description": {
+          "base_load_entity": "Wordt gebruikt om het zonne-overschot te berekenen. Leeg laten om de terugvalwaarde te gebruiken.",
+          "forecast_entities": "Sensoren met een detailedForecast-attribuut (Solcast: vandaag, morgen).",
+          "forecast_weight": "0 = enkel actuele PV-productie, 1 = enkel de voorspelling."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Solar Airco",
+        "data": {
+          "pv_power_entity": "PV-productie (W)",
+          "base_load_entity": "Huisverbruik zonder airco's (W)",
+          "fallback_base_load_w": "Terugvalwaarde huisverbruik (W)",
+          "forecast_entities": "Solcast-voorspellingssensoren",
+          "forecast_field": "Voorspellingsschatting",
+          "forecast_weight": "Gewicht van voorspelling t.o.v. actuele PV"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "airco": {
+      "initiate_flow": {
+        "user": "Airco toevoegen",
+        "reconfigure": "Airco aanpassen"
+      },
+      "entry_type": "Airco",
+      "step": {
+        "user": {
+          "title": "Airco toevoegen",
+          "data": {
+            "name": "Naam",
+            "climate_entity": "Climate-entiteit",
+            "power_max": "Maximaal vermogen (W)",
+            "power_idle": "Vermogen nabij de gewenste temperatuur (W)"
+          }
+        },
+        "reconfigure": {
+          "title": "Airco aanpassen",
+          "data": {
+            "name": "Naam",
+            "climate_entity": "Climate-entiteit",
+            "power_max": "Maximaal vermogen (W)",
+            "power_idle": "Vermogen nabij de gewenste temperatuur (W)"
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "Airco bijgewerkt"
+      }
+    }
+  },
+  "selector": {
+    "forecast_field": {
+      "options": {
+        "pv_estimate": "Verwacht (P50)",
+        "pv_estimate10": "Voorzichtig (P10)",
+        "pv_estimate90": "Optimistisch (P90)"
+      }
+    }
+  },
+  "entity": {
+    "number": {
+      "min_temp": { "name": "Minimumtemperatuur" },
+      "desired_temp": { "name": "Gewenste temperatuur" },
+      "priority": { "name": "Prioriteit" }
+    },
+    "time": {
+      "start": { "name": "Start verwarmingsvenster" },
+      "end": { "name": "Einde verwarmingsvenster" }
+    },
+    "switch": {
+      "enabled": { "name": "Actief" },
+      "dry_run": { "name": "Testmodus" },
+      "airco_enabled": { "name": "Aangestuurd" }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": { "active": "Actief", "dry_run": "Testmodus", "disabled": "Uitgeschakeld" }
+      },
+      "total_power": { "name": "Geschat airco-vermogen" },
+      "pv_effective": { "name": "Effectief PV-vermogen" },
+      "surplus": { "name": "Zonne-overschot" },
+      "airco_power": { "name": "Geschat vermogen" },
+      "airco_mode": {
+        "name": "Modus",
+        "state": {
+          "solar": "Zon",
+          "comfort": "Comfort (minimum)",
+          "off": "Uit",
+          "hold": "Wachten",
+          "unmanaged": "Niet aangestuurd"
+        }
+      }
+    }
+  }
+}

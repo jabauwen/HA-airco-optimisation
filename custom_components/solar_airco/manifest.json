@@ -1,0 +1,13 @@
+{
+  "domain": "solar_airco",
+  "name": "Solar Airco",
+  "codeowners": ["@jabauwen"],
+  "config_flow": true,
+  "documentation": "https://github.com/jabauwen/HA-airco-optimisation",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/jabauwen/HA-airco-optimisation/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

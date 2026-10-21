@@ -160,7 +160,19 @@ def plan(
     base_load_w: float,
     forecast: Forecast,
     tun: Tunables,
+    base_load_includes_aircos: bool = False,
+    estimated_current_airco_w: float | None = None,
 ) -> Tuple[List[Decision], Dict[str, float]]:
+    if base_load_includes_aircos:
+        estimated_airco_load = estimated_current_airco_w
+        if estimated_airco_load is None:
+            estimated_airco_load = sum(
+                estimate_power(spec, state.temp)
+                for spec in specs
+                if (state := states[spec.name]).hvac_mode == "heat" and state.temp is not None
+            )
+        base_load_w = max(0.0, base_load_w - estimated_airco_load)
+
     pv_eff = effective_pv(pv_actual_w, forecast, now, tun)
     surplus = max(0.0, pv_eff - base_load_w)
     info = {"pv_effective_w": round(pv_eff), "surplus_w": round(surplus)}

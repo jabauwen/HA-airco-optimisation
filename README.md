@@ -17,8 +17,9 @@ For every airco you configure, through entities in the UI:
 
 Every minute (and whenever an airco changes state) the integration:
 
-1. Combines actual PV production with the Solcast forecast (weight configurable) and subtracts the house
-   consumption **without** the airco's. The rest is the solar surplus.
+1. Combines actual PV production with the Solcast forecast (weight configurable) and subtracts house
+   consumption to calculate the solar surplus. If the consumption sensor includes configured airco's in heat
+   mode, their estimated current heating power is removed first.
 2. Gives the surplus to the airco's in priority order. The estimated draw of an airco falls from its maximum to
    idle as the room approaches the desired temperature, so it needs less surplus to keep running.
 3. Starts heating to the desired temperature on solar surplus, and stops when it is reached.
@@ -41,6 +42,10 @@ Per airco (own device): the settings above, *Estimated power* and *Mode* (with `
 `Estimated airco power` is a model-based estimate (not a measurement); it is meant to be subtracted from your
 house consumption or fed to an energy manager.
 
+The model interpolates between the configured idle and maximum draw based on the room and desired temperatures:
+`idle + (maximum - idle) * min(1, max(0, (desired temperature - room temperature) / 3))`.
+This is an estimate, not a separate measurement, and depends on the idle and maximum values being set reasonably.
+
 ## Install
 
 1. Push this repository to GitHub.
@@ -48,8 +53,9 @@ house consumption or fed to an energy manager.
 3. Install **Solar Airco**, restart Home Assistant.
 4. *Settings → Devices & services → Add integration → Solar Airco*.
    - PV production: a power sensor in W.
-   - House consumption without airco's: a power sensor in W (must not include the airco's, otherwise the
-     surplus is underestimated).
+   - House consumption: a power sensor in W. Enable *House consumption includes airco's* if the sensor includes
+     configured airco's in heat mode. Their modeled heating draw is subtracted from the reading. Leave it
+     disabled if the sensor already excludes them.
    - Forecast sensors: sensors with a `detailedForecast` attribute (Solcast: today and tomorrow).
 5. Use *Add airco* on the integration page for each airco (climate entity, maximum power, idle power).
 

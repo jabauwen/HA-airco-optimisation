@@ -94,7 +94,23 @@ class AircoLogicTests(unittest.TestCase):
     def test_power_drops_near_desired(self):
         s = spec()
         self.assertGreater(estimate_power(s, 18), estimate_power(s, 20.5))
+        self.assertEqual(estimate_power(s, 19.5), 475)
         self.assertEqual(estimate_power(s, 21.5), s.power_idle)
+
+    def test_included_airco_load_is_removed_from_house_consumption(self):
+        airco = spec()
+        states = {"zit": AircoState("heat", 18)}
+
+        _, info_without_adjustment = plan(
+            NOW, [airco], states, 1200, 1000, [], Tunables()
+        )
+        _, info_with_adjustment = plan(
+            NOW, [airco], states, 1200, 1000, [], Tunables(),
+            base_load_includes_aircos=True,
+        )
+
+        self.assertEqual(info_without_adjustment["surplus_w"], 200)
+        self.assertEqual(info_with_adjustment["surplus_w"], 1100)
 
     def test_forecast_parsing_and_average(self):
         raw = [{"period_start": NOW.isoformat(), "pv_estimate": 2.0},

@@ -19,6 +19,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_AIRCO_NAME,
     CONF_BASE_LOAD,
+    CONF_BASE_LOAD_INCLUDES_AIRCOS,
     CONF_CLIMATE,
     CONF_FALLBACK_BASE_LOAD,
     CONF_FORECAST_ENTITIES,
@@ -55,6 +56,7 @@ def _global_schema() -> vol.Schema:
         {
             vol.Required(CONF_PV_POWER): _sensor_selector(device_class="power"),
             vol.Optional(CONF_BASE_LOAD): _sensor_selector(device_class="power"),
+            vol.Optional(CONF_BASE_LOAD_INCLUDES_AIRCOS, default=False): selector.BooleanSelector(),
             vol.Required(CONF_FALLBACK_BASE_LOAD, default=DEFAULT_FALLBACK_BASE_LOAD): _number_selector(
                 0, 10000, 10, "W"
             ),

@@ -6,7 +6,8 @@
         "description": "Kies de sensoren waarmee bepaald wordt wanneer de airco's mogen verwarmen. Voeg de airco's daarna toe via de knop \"Airco toevoegen\".",
         "data": {
           "pv_power_entity": "PV-productie (W)",
-          "base_load_entity": "Huisverbruik zonder airco's (W)",
+          "base_load_entity": "Huisverbruik (W)",
+          "base_load_includes_aircos": "Huisverbruik omvat airco's",
           "fallback_base_load_w": "Terugvalwaarde huisverbruik (W)",
           "forecast_entities": "Solcast-voorspellingssensoren",
           "forecast_field": "Voorspellingsschatting",
@@ -14,6 +15,7 @@
         },
         "data_description": {
           "base_load_entity": "Wordt gebruikt om het zonne-overschot te berekenen. Leeg laten om de terugvalwaarde te gebruiken.",
+          "base_load_includes_aircos": "Schakel in als deze sensor het totale huisverbruik inclusief ingestelde airco's in verwarmingsmodus meet. Hun geschatte verwarmingsvermogen wordt met het temperatuurgebaseerde model afgetrokken.",
           "forecast_entities": "Sensoren met een detailedForecast-attribuut (Solcast: vandaag, morgen).",
           "forecast_weight": "0 = enkel actuele PV-productie, 1 = enkel de voorspelling."
         }
@@ -26,11 +28,18 @@
         "title": "Solar Airco",
         "data": {
           "pv_power_entity": "PV-productie (W)",
-          "base_load_entity": "Huisverbruik zonder airco's (W)",
+          "base_load_entity": "Huisverbruik (W)",
+          "base_load_includes_aircos": "Huisverbruik omvat airco's",
           "fallback_base_load_w": "Terugvalwaarde huisverbruik (W)",
           "forecast_entities": "Solcast-voorspellingssensoren",
           "forecast_field": "Voorspellingsschatting",
           "forecast_weight": "Gewicht van voorspelling t.o.v. actuele PV"
+        },
+        "data_description": {
+          "base_load_entity": "Wordt gebruikt om het zonne-overschot te berekenen. Leeg laten om de terugvalwaarde te gebruiken.",
+          "base_load_includes_aircos": "Schakel in als deze sensor het totale huisverbruik inclusief ingestelde airco's in verwarmingsmodus meet. Hun geschatte verwarmingsvermogen wordt met het temperatuurgebaseerde model afgetrokken.",
+          "forecast_entities": "Sensoren met een detailedForecast-attribuut (Solcast: vandaag, morgen).",
+          "forecast_weight": "0 = enkel actuele PV-productie, 1 = enkel de voorspelling."
         }
       }
     }

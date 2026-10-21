@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_BASE_LOAD,
+    CONF_BASE_LOAD_INCLUDES_AIRCOS,
     CONF_CLIMATE,
     CONF_FALLBACK_BASE_LOAD,
     CONF_FORECAST_ENTITIES,
@@ -36,6 +37,7 @@ from .logic import (
     AircoState,
     Decision,
     Tunables,
+    estimate_power,
     parse_forecast,
     plan,
     to_float,
@@ -104,6 +106,9 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
 
         pv = to_float(self._state_value(cfg.get(CONF_PV_POWER)))
         base_load = to_float(self._state_value(cfg.get(CONF_BASE_LOAD)))
+        base_load_includes_aircos = base_load is not None and cfg.get(
+            CONF_BASE_LOAD_INCLUDES_AIRCOS, False
+        )
         if base_load is None:
             base_load = float(cfg.get(CONF_FALLBACK_BASE_LOAD, DEFAULT_FALLBACK_BASE_LOAD))
 
@@ -116,36 +121,52 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
         specs: list[AircoSpec] = []
         states: dict[str, AircoState] = {}
         decisions: dict[str, Decision] = {}
+        estimated_current_airco_w = 0.0
         for sid, sub in self.config_entry.subentries.items():
             settings = self.settings[sid]
             entity_id = sub.data[CONF_CLIMATE]
             state = self.hass.states.get(entity_id)
-            if not settings.enabled or state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 reason = "disabled" if not settings.enabled else "airco unavailable"
                 decisions[sid] = Decision(sid, entity_id, "none", "unmanaged", None, reason, 0, False)
                 continue
-            specs.append(
-                AircoSpec(
-                    name=sid,
-                    entity=entity_id,
-                    min_temp=min(settings.min_temp, settings.desired_temp),
-                    desired_temp=settings.desired_temp,
-                    start=settings.start,
-                    end=settings.end,
-                    power_max=float(sub.data.get(CONF_POWER_MAX, DEFAULT_POWER_MAX)),
-                    power_idle=float(sub.data.get(CONF_POWER_IDLE, DEFAULT_POWER_IDLE)),
-                    priority=settings.priority,
-                )
+            spec = AircoSpec(
+                name=sid,
+                entity=entity_id,
+                min_temp=min(settings.min_temp, settings.desired_temp),
+                desired_temp=settings.desired_temp,
+                start=settings.start,
+                end=settings.end,
+                power_max=float(sub.data.get(CONF_POWER_MAX, DEFAULT_POWER_MAX)),
+                power_idle=float(sub.data.get(CONF_POWER_IDLE, DEFAULT_POWER_IDLE)),
+                priority=settings.priority,
             )
-            states[sid] = AircoState(
+            airco_state = AircoState(
                 hvac_mode=state.state,
                 temp=to_float(state.attributes.get("current_temperature")),
                 setpoint=to_float(state.attributes.get("temperature")),
                 last_change=state.last_changed,
             )
+            if base_load_includes_aircos and airco_state.hvac_mode == "heat" and airco_state.temp is not None:
+                estimated_current_airco_w += estimate_power(spec, airco_state.temp)
+            if not settings.enabled:
+                decisions[sid] = Decision(sid, entity_id, "none", "unmanaged", None, "disabled", 0, False)
+                continue
+            specs.append(spec)
+            states[sid] = airco_state
 
         tunables = Tunables(forecast_weight=float(cfg.get(CONF_FORECAST_WEIGHT, DEFAULT_FORECAST_WEIGHT)))
-        planned, info = plan(now, specs, states, pv, base_load, forecast, tunables)
+        planned, info = plan(
+            now,
+            specs,
+            states,
+            pv,
+            base_load,
+            forecast,
+            tunables,
+            base_load_includes_aircos,
+            estimated_current_airco_w,
+        )
         for decision in planned:
             decisions[decision.name] = decision
             if not self.dry_run:

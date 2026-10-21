@@ -6,7 +6,8 @@
         "description": "Choose the sensors used to decide when the airco's may heat. Add the airco's afterwards via the integration's \"Add airco\" button.",
         "data": {
           "pv_power_entity": "PV production (W)",
-          "base_load_entity": "House consumption without airco's (W)",
+          "base_load_entity": "House consumption (W)",
+          "base_load_includes_aircos": "House consumption includes airco's",
           "fallback_base_load_w": "Fallback house consumption (W)",
           "forecast_entities": "Solcast forecast sensors",
           "forecast_field": "Forecast estimate",
@@ -14,6 +15,7 @@
         },
         "data_description": {
           "base_load_entity": "Used to calculate the solar surplus. Leave empty to use the fallback value.",
+          "base_load_includes_aircos": "Enable when this sensor measures total house consumption including configured airco's in heat mode. Their estimated heating power is subtracted using the temperature-based model.",
           "forecast_entities": "Sensors with a detailedForecast attribute (Solcast: today, tomorrow).",
           "forecast_weight": "0 = only actual PV production, 1 = only the forecast."
         }
@@ -26,11 +28,18 @@
         "title": "Solar Airco",
         "data": {
           "pv_power_entity": "PV production (W)",
-          "base_load_entity": "House consumption without airco's (W)",
+          "base_load_entity": "House consumption (W)",
+          "base_load_includes_aircos": "House consumption includes airco's",
           "fallback_base_load_w": "Fallback house consumption (W)",
           "forecast_entities": "Solcast forecast sensors",
           "forecast_field": "Forecast estimate",
           "forecast_weight": "Weight of the forecast vs. actual PV"
+        },
+        "data_description": {
+          "base_load_entity": "Used to calculate the solar surplus. Leave empty to use the fallback value.",
+          "base_load_includes_aircos": "Enable when this sensor measures total house consumption including configured airco's in heat mode. Their estimated heating power is subtracted using the temperature-based model.",
+          "forecast_entities": "Sensors with a detailedForecast attribute (Solcast: today, tomorrow).",
+          "forecast_weight": "0 = only actual PV production, 1 = only the forecast."
         }
       }
     }

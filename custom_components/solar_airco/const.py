@@ -7,6 +7,7 @@ SUBENTRY_AIRCO = "airco"
 
 CONF_PV_POWER = "pv_power_entity"
 CONF_BASE_LOAD = "base_load_entity"
+CONF_BASE_LOAD_INCLUDES_AIRCOS = "base_load_includes_aircos"
 CONF_FALLBACK_BASE_LOAD = "fallback_base_load_w"
 CONF_FORECAST_ENTITIES = "forecast_entities"
 CONF_FORECAST_FIELD = "forecast_field"

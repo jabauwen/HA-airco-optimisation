@@ -1,50 +1,44 @@
 # Solar Airco
 
-A Home Assistant custom integration (HACS) that steers air conditioners **for heating only**, based on your
-solar production and the Solcast forecast.
+A Home Assistant custom integration (HACS) that adjusts air-conditioner heating setpoints using the **measured
+solar power left**. It does not use solar forecasts.
 
 ## How it works
 
-For every airco you configure, through entities in the UI:
+Configure PV production and, optionally, house consumption. The integration calculates:
+
+`solar capacity left = PV production - house consumption`
+
+The *Solar capacity left* sensor reports this signed value in watts: positive means excess solar power, while
+negative means the home is consuming power from the grid. If no usable house-consumption reading is available,
+the configured fallback consumption is used.
+
+For each airco, configure:
 
 | Entity | Meaning |
 |---|---|
-| Minimum temperature | Below this the airco heats from the grid, but only inside the time window |
-| Desired temperature | Target while there is solar surplus |
-| Heating window start / end | Heating is only allowed in this window (may cross midnight) |
-| Priority | Lower number gets the solar surplus first |
-| Controlled (switch) | Per-airco on/off for the controller |
+| Day period start / end | Defines when day behavior applies; periods may cross midnight |
+| Day minimum temperature | Lowest day setpoint |
+| Day desired temperature | Highest day setpoint while solar power is available |
+| Night temperature | Fixed setpoint outside the day period |
+| Controlled | Enables or disables this airco's control |
 
-Every minute (and whenever an airco changes state) the integration:
+During the day, at each update, the controller raises the current setpoint by 1 °C when there is solar power left,
+up to the desired temperature. When the home is consuming power, it lowers the setpoint by 1 °C, but not below
+the minimum. If production matches consumption, the setpoint stays unchanged. At night, it applies the configured
+night temperature.
 
-1. Combines actual PV production with the Solcast forecast (weight configurable) and subtracts house
-   consumption to calculate the solar surplus. If the consumption sensor includes configured airco's in heat
-   mode, their estimated current heating power is removed first.
-2. Gives the surplus to the airco's in priority order. The estimated draw of an airco falls from its maximum to
-   idle as the room approaches the desired temperature, so it needs less surplus to keep running.
-3. Starts heating to the desired temperature on solar surplus, and stops when it is reached.
-4. Below the minimum temperature it heats from the grid up to the minimum plus 0.5 °C, unless Solcast shows
-   enough surplus within 90 minutes and the room is less than 1 °C below the minimum.
-5. Uses minimum on/off times (10 minutes) and a 0.5 °C hysteresis to avoid rapid cycling.
+The update interval is configurable from 1 to 60 minutes and defaults to one minute. Aircos in modes other than
+`off` or `heat` are left untouched. An airco that is off is put into `heat` when a setpoint needs to be applied.
 
-Airco's in another mode than `off` or `heat` (cool, dry, auto, ...) are never touched.
-
-> **Dry run is on by default.** The integration only reports what it would do (see the *Mode* sensors and their
-> `reason` attribute) until you turn the *Dry run* switch off.
-
-An airco that is in `heat` outside its window is switched off by the controller.
+> **Dry run is on by default.** The integration reports the intended setpoint in each airco's *Mode* sensor
+> attributes (`action`, `reason`, and `setpoint`) until you turn the *Dry run* switch off.
 
 ## Entities
 
-Main device: *Enabled*, *Dry run*, *Status*, *Estimated airco power*, *Effective PV power*, *Solar surplus*.
-Per airco (own device): the settings above, *Estimated power* and *Mode* (with `reason`, `action`, `setpoint`).
-
-`Estimated airco power` is a model-based estimate (not a measurement); it is meant to be subtracted from your
-house consumption or fed to an energy manager.
-
-The model interpolates between the configured idle and maximum draw based on the room and desired temperatures:
-`idle + (maximum - idle) * min(1, max(0, (desired temperature - room temperature) / 3))`.
-This is an estimate, not a separate measurement, and depends on the idle and maximum values being set reasonably.
+Main device: *Enabled*, *Dry run*, *Status*, *Solar capacity left*.
+Each airco has *Day period start*, *Day period end*, *Day minimum temperature*, *Day desired temperature*,
+*Night temperature*, *Controlled*, and a *Mode* sensor with the intended action and setpoint.
 
 ## Install
 
@@ -53,11 +47,9 @@ This is an estimate, not a separate measurement, and depends on the idle and max
 3. Install **Solar Airco**, restart Home Assistant.
 4. *Settings → Devices & services → Add integration → Solar Airco*.
    - PV production: a power sensor in W.
-   - House consumption: a power sensor in W. Enable *House consumption includes airco's* if the sensor includes
-     configured airco's in heat mode. Their modeled heating draw is subtracted from the reading. Leave it
-     disabled if the sensor already excludes them.
-   - Forecast sensors: sensors with a `detailedForecast` attribute (Solcast: today and tomorrow).
-5. Use *Add airco* on the integration page for each airco (climate entity, maximum power, idle power).
+   - House consumption: a power sensor in W. If omitted or unavailable, the configured fallback is used.
+   - Set the update interval (one minute by default).
+5. Use *Add airco* on the integration page for each climate entity.
 
 Repository: https://github.com/jabauwen/HA-airco-optimisation
 

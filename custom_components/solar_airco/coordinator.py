@@ -1,4 +1,4 @@
-"""Coordinator: reads the states, plans and (unless dry-run) switches the airco's."""
+"""Coordinator: measures solar balance and applies thermostat setpoints."""
 from __future__ import annotations
 
 import logging
@@ -15,33 +15,15 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_BASE_LOAD,
-    CONF_BASE_LOAD_INCLUDES_AIRCOS,
     CONF_CLIMATE,
     CONF_FALLBACK_BASE_LOAD,
-    CONF_FORECAST_ENTITIES,
-    CONF_FORECAST_FIELD,
-    CONF_FORECAST_WEIGHT,
-    CONF_POWER_IDLE,
-    CONF_POWER_MAX,
     CONF_PV_POWER,
+    CONF_UPDATE_INTERVAL_MINUTES,
     DEFAULT_FALLBACK_BASE_LOAD,
-    DEFAULT_FORECAST_FIELD,
-    DEFAULT_FORECAST_WEIGHT,
-    DEFAULT_POWER_IDLE,
-    DEFAULT_POWER_MAX,
+    DEFAULT_UPDATE_INTERVAL_MINUTES,
     DOMAIN,
-    UPDATE_INTERVAL_S,
 )
-from .logic import (
-    AircoSpec,
-    AircoState,
-    Decision,
-    Tunables,
-    estimate_power,
-    parse_forecast,
-    plan,
-    to_float,
-)
+from .logic import AircoSpec, AircoState, Decision, plan, to_float
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,9 +36,9 @@ class AircoSettings:
 
     min_temp: float = 18.0
     desired_temp: float = 21.0
-    start: time = time(8, 0)
-    end: time = time(21, 0)
-    priority: int = 1
+    night_temp: float = 17.0
+    day_start: time = time(8, 0)
+    day_end: time = time(21, 0)
     enabled: bool = True
 
 
@@ -64,27 +46,30 @@ class AircoSettings:
 class PlanData:
     status: str
     decisions: dict[str, Decision] = field(default_factory=dict)
-    info: dict[str, float] = field(default_factory=dict)
+    info: dict[str, float | None] = field(default_factory=dict)
 
 
 class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
-    """Evaluates all airco's every minute and on state changes."""
+    """Evaluates all aircos at the configured interval."""
 
     config_entry: SolarAircoConfigEntry
 
     def __init__(self, hass: HomeAssistant, entry: SolarAircoConfigEntry) -> None:
+        config = {**entry.data, **entry.options}
+        interval = int(
+            config.get(CONF_UPDATE_INTERVAL_MINUTES, DEFAULT_UPDATE_INTERVAL_MINUTES)
+        )
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
             config_entry=entry,
-            update_interval=timedelta(seconds=UPDATE_INTERVAL_S),
+            update_interval=timedelta(minutes=interval),
         )
         self.enabled = True
-        # Safe default: only report what would happen until the user turns dry-run off
         self.dry_run = True
         self.settings: dict[str, AircoSettings] = {
-            sid: AircoSettings(priority=index + 1) for index, sid in enumerate(entry.subentries)
+            sid: AircoSettings() for sid in entry.subentries
         }
 
     @property
@@ -102,75 +87,55 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
             return PlanData(status="disabled")
 
         cfg = self.config
-        now = dt_util.now()
-
         pv = to_float(self._state_value(cfg.get(CONF_PV_POWER)))
         base_load = to_float(self._state_value(cfg.get(CONF_BASE_LOAD)))
-        base_load_includes_aircos = base_load is not None and cfg.get(
-            CONF_BASE_LOAD_INCLUDES_AIRCOS, False
-        )
         if base_load is None:
-            base_load = float(cfg.get(CONF_FALLBACK_BASE_LOAD, DEFAULT_FALLBACK_BASE_LOAD))
+            base_load = float(
+                cfg.get(CONF_FALLBACK_BASE_LOAD, DEFAULT_FALLBACK_BASE_LOAD)
+            )
+        solar_balance = pv - base_load if pv is not None else None
 
-        sources = []
-        for entity_id in cfg.get(CONF_FORECAST_ENTITIES) or []:
-            state = self.hass.states.get(entity_id)
-            sources.append(state.attributes.get("detailedForecast") if state else None)
-        forecast = parse_forecast(sources, cfg.get(CONF_FORECAST_FIELD, DEFAULT_FORECAST_FIELD))
-
+        now = dt_util.now()
         specs: list[AircoSpec] = []
         states: dict[str, AircoState] = {}
         decisions: dict[str, Decision] = {}
-        estimated_current_airco_w = 0.0
-        for sid, sub in self.config_entry.subentries.items():
+        for sid, subentry in self.config_entry.subentries.items():
             settings = self.settings[sid]
-            entity_id = sub.data[CONF_CLIMATE]
+            entity_id = subentry.data[CONF_CLIMATE]
             state = self.hass.states.get(entity_id)
             if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 reason = "disabled" if not settings.enabled else "airco unavailable"
-                decisions[sid] = Decision(sid, entity_id, "none", "unmanaged", None, reason, 0, False)
+                decisions[sid] = Decision(
+                    sid, entity_id, "none", "unmanaged", None, reason
+                )
                 continue
-            spec = AircoSpec(
-                name=sid,
-                entity=entity_id,
-                min_temp=min(settings.min_temp, settings.desired_temp),
-                desired_temp=settings.desired_temp,
-                start=settings.start,
-                end=settings.end,
-                power_max=float(sub.data.get(CONF_POWER_MAX, DEFAULT_POWER_MAX)),
-                power_idle=float(sub.data.get(CONF_POWER_IDLE, DEFAULT_POWER_IDLE)),
-                priority=settings.priority,
-            )
-            airco_state = AircoState(
-                hvac_mode=state.state,
-                temp=to_float(state.attributes.get("current_temperature")),
-                setpoint=to_float(state.attributes.get("temperature")),
-                last_change=state.last_changed,
-            )
-            if base_load_includes_aircos and airco_state.hvac_mode == "heat" and airco_state.temp is not None:
-                estimated_current_airco_w += estimate_power(spec, airco_state.temp)
             if not settings.enabled:
-                decisions[sid] = Decision(sid, entity_id, "none", "unmanaged", None, "disabled", 0, False)
+                decisions[sid] = Decision(
+                    sid, entity_id, "none", "unmanaged", None, "disabled"
+                )
                 continue
-            specs.append(spec)
-            states[sid] = airco_state
 
-        tunables = Tunables(forecast_weight=float(cfg.get(CONF_FORECAST_WEIGHT, DEFAULT_FORECAST_WEIGHT)))
-        planned, info = plan(
-            now,
-            specs,
-            states,
-            pv,
-            base_load,
-            forecast,
-            tunables,
-            base_load_includes_aircos,
-            estimated_current_airco_w,
-        )
+            specs.append(
+                AircoSpec(
+                    name=sid,
+                    entity=entity_id,
+                    min_temp=settings.min_temp,
+                    desired_temp=settings.desired_temp,
+                    night_temp=settings.night_temp,
+                    day_start=settings.day_start,
+                    day_end=settings.day_end,
+                )
+            )
+            states[sid] = AircoState(
+                hvac_mode=state.state,
+                setpoint=to_float(state.attributes.get("temperature")),
+            )
+
+        planned, info = plan(now, specs, states, solar_balance)
         for decision in planned:
             decisions[decision.name] = decision
             if not self.dry_run:
-                await self._apply(decision, states[decision.name])
+                await self._apply(decision)
 
         status = "dry_run" if self.dry_run else "active"
         return PlanData(status=status, decisions=decisions, info=info)
@@ -179,18 +144,32 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
         try:
             await self.hass.services.async_call("climate", service, data, blocking=True)
         except HomeAssistantError as err:
-            _LOGGER.warning("climate.%s failed for %s: %s", service, data.get(ATTR_ENTITY_ID), err)
+            _LOGGER.warning(
+                "climate.%s failed for %s: %s",
+                service,
+                data.get(ATTR_ENTITY_ID),
+                err,
+            )
 
-    async def _apply(self, decision: Decision, current: AircoState) -> None:
-        if decision.action == "on":
-            if current.hvac_mode != "heat":
-                await self._call("set_hvac_mode", {ATTR_ENTITY_ID: decision.entity, "hvac_mode": "heat"})
-            if decision.setpoint is not None:
-                state = self.hass.states.get(decision.entity)
-                low = to_float(state.attributes.get("min_temp")) if state else None
-                high = to_float(state.attributes.get("max_temp")) if state else None
-                target = max(low or 10.0, min(high or 31.0, decision.setpoint))
-                if current.setpoint is None or abs(current.setpoint - target) >= 0.25:
-                    await self._call("set_temperature", {ATTR_ENTITY_ID: decision.entity, "temperature": target})
-        elif decision.action == "off" and current.hvac_mode == "heat":
-            await self._call("set_hvac_mode", {ATTR_ENTITY_ID: decision.entity, "hvac_mode": "off"})
+    async def _apply(self, decision: Decision) -> None:
+        if decision.action != "set" or decision.setpoint is None:
+            return
+
+        state = self.hass.states.get(decision.entity)
+        if state is None or state.state not in ("off", "heat"):
+            return
+        if state.state == "off":
+            await self._call(
+                "set_hvac_mode",
+                {ATTR_ENTITY_ID: decision.entity, "hvac_mode": "heat"},
+            )
+
+        low = to_float(state.attributes.get("min_temp"))
+        high = to_float(state.attributes.get("max_temp"))
+        target = max(low or 10.0, min(high or 31.0, decision.setpoint))
+        current = to_float(state.attributes.get("temperature"))
+        if current is None or abs(current - target) >= 0.25:
+            await self._call(
+                "set_temperature",
+                {ATTR_ENTITY_ID: decision.entity, "temperature": target},
+            )

@@ -19,22 +19,13 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_AIRCO_NAME,
     CONF_BASE_LOAD,
-    CONF_BASE_LOAD_INCLUDES_AIRCOS,
     CONF_CLIMATE,
     CONF_FALLBACK_BASE_LOAD,
-    CONF_FORECAST_ENTITIES,
-    CONF_FORECAST_FIELD,
-    CONF_FORECAST_WEIGHT,
-    CONF_POWER_IDLE,
-    CONF_POWER_MAX,
     CONF_PV_POWER,
+    CONF_UPDATE_INTERVAL_MINUTES,
     DEFAULT_FALLBACK_BASE_LOAD,
-    DEFAULT_FORECAST_FIELD,
-    DEFAULT_FORECAST_WEIGHT,
-    DEFAULT_POWER_IDLE,
-    DEFAULT_POWER_MAX,
+    DEFAULT_UPDATE_INTERVAL_MINUTES,
     DOMAIN,
-    FORECAST_FIELDS,
     SUBENTRY_AIRCO,
 )
 
@@ -56,21 +47,14 @@ def _global_schema() -> vol.Schema:
         {
             vol.Required(CONF_PV_POWER): _sensor_selector(device_class="power"),
             vol.Optional(CONF_BASE_LOAD): _sensor_selector(device_class="power"),
-            vol.Optional(CONF_BASE_LOAD_INCLUDES_AIRCOS, default=False): selector.BooleanSelector(),
             vol.Required(CONF_FALLBACK_BASE_LOAD, default=DEFAULT_FALLBACK_BASE_LOAD): _number_selector(
                 0, 10000, 10, "W"
             ),
-            vol.Optional(CONF_FORECAST_ENTITIES): _sensor_selector(multiple=True),
-            vol.Required(CONF_FORECAST_FIELD, default=DEFAULT_FORECAST_FIELD): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=FORECAST_FIELDS,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                    translation_key=CONF_FORECAST_FIELD,
-                )
-            ),
-            vol.Required(CONF_FORECAST_WEIGHT, default=DEFAULT_FORECAST_WEIGHT): selector.NumberSelector(
+            vol.Required(
+                CONF_UPDATE_INTERVAL_MINUTES, default=DEFAULT_UPDATE_INTERVAL_MINUTES
+            ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=0, max=1, step=0.05, mode=selector.NumberSelectorMode.SLIDER
+                    min=1, max=60, step=1, mode=selector.NumberSelectorMode.BOX
                 )
             ),
         }
@@ -82,8 +66,6 @@ def _airco_schema() -> vol.Schema:
         {
             vol.Required(CONF_AIRCO_NAME): selector.TextSelector(),
             vol.Required(CONF_CLIMATE): selector.EntitySelector(selector.EntitySelectorConfig(domain="climate")),
-            vol.Required(CONF_POWER_MAX, default=DEFAULT_POWER_MAX): _number_selector(100, 5000, 50, "W"),
-            vol.Required(CONF_POWER_IDLE, default=DEFAULT_POWER_IDLE): _number_selector(0, 500, 5, "W"),
         }
     )
 

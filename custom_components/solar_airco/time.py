@@ -1,4 +1,4 @@
-"""Time entities: start and end of the heating window per airco."""
+"""Time entities for the day period per airco."""
 from __future__ import annotations
 
 from datetime import time
@@ -11,7 +11,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .coordinator import SolarAircoConfigEntry, SolarAircoCoordinator
 from .entity import SolarAircoEntity
 
-KEYS = {"start": "mdi:clock-start", "end": "mdi:clock-end"}
+KEYS = {"day_start": "mdi:clock-start", "day_end": "mdi:clock-end"}
 
 
 async def async_setup_entry(

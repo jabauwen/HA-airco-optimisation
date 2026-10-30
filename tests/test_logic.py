@@ -2,10 +2,11 @@ import importlib.util
 import os
 import sys
 import unittest
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timezone
 
-# Load logic.py by path: the package folder also contains a time.py platform that would shadow stdlib `time`
-_path = os.path.join(os.path.dirname(__file__), "..", "custom_components", "solar_airco", "logic.py")
+_path = os.path.join(
+    os.path.dirname(__file__), "..", "custom_components", "solar_airco", "logic.py"
+)
 _spec = importlib.util.spec_from_file_location("solar_airco_logic", _path)
 logic = importlib.util.module_from_spec(_spec)
 sys.modules["solar_airco_logic"] = logic
@@ -13,113 +14,106 @@ _spec.loader.exec_module(logic)
 
 AircoSpec = logic.AircoSpec
 AircoState = logic.AircoState
-Tunables = logic.Tunables
-average_forecast = logic.average_forecast
-estimate_power = logic.estimate_power
-in_window = logic.in_window
-parse_forecast = logic.parse_forecast
+in_day_period = logic.in_day_period
 plan = logic.plan
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)
 
 
-def spec(name="zit", priority=1, **kw):
-    base = dict(
-        name=name, entity=f"climate.{name}", min_temp=18, desired_temp=21,
-        start=time(8), end=time(20), priority=priority,
+def spec(**kwargs):
+    values = {
+        "name": "living_room",
+        "entity": "climate.living_room",
+        "min_temp": 18.0,
+        "desired_temp": 21.0,
+        "night_temp": 17.0,
+        "day_start": time(8),
+        "day_end": time(21),
+    }
+    values.update(kwargs)
+    return AircoSpec(**values)
+
+
+def decision(current_setpoint, balance, **airco_options):
+    airco = spec(**airco_options)
+    decisions, info = plan(
+        NOW,
+        [airco],
+        {"living_room": AircoState("heat", current_setpoint)},
+        balance,
     )
-    base.update(kw)
-    return AircoSpec(**base)
-
-
-def forecast(*watts_per_half_hour, start=NOW):
-    return [(start + timedelta(minutes=30 * i), w) for i, w in enumerate(watts_per_half_hour)]
-
-
-def run(specs, states, pv=0.0, base=400.0, fc=None):
-    decisions, info = plan(NOW, specs, states, pv, base, fc or [], Tunables())
-    return {d.name: d for d in decisions}, info
+    return decisions[0], info
 
 
 class AircoLogicTests(unittest.TestCase):
-    def test_outside_window_turns_off(self):
-        s = spec(start=time(14), end=time(20))
-        d, _ = run([s], {"zit": AircoState("heat", 19)})
-        self.assertEqual(d["zit"].action, "off")
+    def test_solar_surplus_increases_setpoint_by_one_degree(self):
+        result, info = decision(19.0, 1200)
+        self.assertEqual((result.action, result.mode, result.setpoint), ("set", "solar", 20.0))
+        self.assertEqual(info["solar_balance_w"], 1200)
 
-    def test_window_across_midnight(self):
-        s = spec(start=time(22), end=time(6))
-        self.assertTrue(in_window(s, NOW.replace(hour=23)))
-        self.assertFalse(in_window(s, NOW))
+    def test_setpoint_stops_at_desired_temperature(self):
+        result, _ = decision(20.5, 1200)
+        self.assertEqual(result.setpoint, 21.0)
 
-    def test_solar_surplus_heats_to_desired(self):
-        s = spec()
-        d, _ = run([s], {"zit": AircoState("off", 19.5)}, pv=3000, fc=forecast(3000, 3000))
-        self.assertEqual((d["zit"].action, d["zit"].mode, d["zit"].setpoint), ("on", "solar", 21))
+    def test_consumption_decreases_setpoint_by_one_degree(self):
+        result, _ = decision(20.0, -100)
+        self.assertEqual((result.mode, result.setpoint), ("consuming", 19.0))
 
-    def test_no_solar_above_min_stays_off(self):
-        d, _ = run([spec()], {"zit": AircoState("off", 19)})
-        self.assertEqual(d["zit"].action, "none")
+    def test_consumption_never_decreases_below_minimum(self):
+        result, _ = decision(18.0, -100)
+        self.assertEqual((result.action, result.setpoint), ("none", 18.0))
 
-    def test_urgent_below_min_heats_from_grid(self):
-        d, _ = run([spec()], {"zit": AircoState("off", 16.5)})
-        self.assertEqual((d["zit"].action, d["zit"].mode, d["zit"].setpoint), ("on", "comfort", 18.5))
+    def test_zero_balance_keeps_setpoint(self):
+        result, _ = decision(19.5, 0)
+        self.assertEqual((result.action, result.mode, result.setpoint), ("none", "balanced", 19.5))
 
-    def test_slightly_below_min_waits_for_coming_solar(self):
-        d, _ = run([spec()], {"zit": AircoState("off", 17.5)}, fc=forecast(0, 0, 3000))
-        self.assertEqual(d["zit"].action, "none")
-        self.assertIn("expected soon", d["zit"].reason)
+    def test_missing_solar_data_keeps_current_setpoint(self):
+        result, info = decision(19.5, None)
+        self.assertEqual((result.action, result.mode, result.setpoint), ("none", "hold", 19.5))
+        self.assertIsNone(info["solar_balance_w"])
 
-    def test_min_on_time_delays_stop(self):
-        st = AircoState("heat", 19.5, last_change=NOW - timedelta(minutes=2))
-        d, _ = run([spec()], {"zit": st})
-        self.assertEqual(d["zit"].action, "none")
-        self.assertTrue(d["zit"].heating)
+    def test_missing_setpoint_starts_at_minimum_and_uses_solar(self):
+        result, _ = decision(None, 100)
+        self.assertEqual(result.setpoint, 19.0)
 
-    def test_stops_after_min_on_time(self):
-        st = AircoState("heat", 19.5, last_change=NOW - timedelta(minutes=30))
-        d, _ = run([spec()], {"zit": st})
-        self.assertEqual(d["zit"].action, "off")
+    def test_night_period_applies_fixed_temperature(self):
+        result, _ = decision(20.0, 1000, day_start=time(19), day_end=time(7))
+        self.assertEqual((result.mode, result.setpoint), ("night", 17.0))
 
-    def test_priority_shares_limited_surplus(self):
-        specs = [spec("a", 1), spec("b", 2)]
-        states = {"a": AircoState("off", 19), "b": AircoState("off", 19)}
-        d, _ = run(specs, states, pv=1000)
-        self.assertEqual((d["a"].action, d["b"].action), ("on", "none"))
+    def test_day_period_can_cross_midnight(self):
+        airco = spec(day_start=time(22), day_end=time(6))
+        self.assertTrue(in_day_period(airco, NOW.replace(hour=23)))
+        self.assertFalse(in_day_period(airco, NOW))
+
+    def test_off_airco_is_set_to_heat_mode(self):
+        airco = spec()
+        decisions, _ = plan(
+            NOW,
+            [airco],
+            {"living_room": AircoState("off", 20.0)},
+            0,
+        )
+        self.assertEqual(decisions[0].action, "set")
+
+    def test_missing_solar_data_does_not_turn_on_airco(self):
+        airco = spec()
+        decisions, _ = plan(
+            NOW,
+            [airco],
+            {"living_room": AircoState("off", None)},
+            None,
+        )
+        self.assertEqual((decisions[0].action, decisions[0].mode), ("none", "hold"))
 
     def test_other_modes_are_left_alone(self):
-        d, _ = run([spec()], {"zit": AircoState("cool", 25)})
-        self.assertEqual((d["zit"].action, d["zit"].mode), ("none", "unmanaged"))
-
-    def test_power_drops_near_desired(self):
-        s = spec()
-        self.assertGreater(estimate_power(s, 18), estimate_power(s, 20.5))
-        self.assertEqual(estimate_power(s, 19.5), 475)
-        self.assertEqual(estimate_power(s, 21.5), s.power_idle)
-
-    def test_included_airco_load_is_removed_from_house_consumption(self):
         airco = spec()
-        states = {"zit": AircoState("heat", 18)}
-
-        _, info_without_adjustment = plan(
-            NOW, [airco], states, 1200, 1000, [], Tunables()
+        decisions, _ = plan(
+            NOW,
+            [airco],
+            {"living_room": AircoState("cool", 19.0)},
+            1000,
         )
-        _, info_with_adjustment = plan(
-            NOW, [airco], states, 1200, 1000, [], Tunables(),
-            base_load_includes_aircos=True,
-        )
-
-        self.assertEqual(info_without_adjustment["surplus_w"], 200)
-        self.assertEqual(info_with_adjustment["surplus_w"], 1100)
-
-    def test_forecast_parsing_and_average(self):
-        raw = [{"period_start": NOW.isoformat(), "pv_estimate": 2.0},
-               {"period_start": (NOW + timedelta(minutes=30)).isoformat(), "pv_estimate": 4.0}]
-        fc = parse_forecast([raw, None])
-        self.assertEqual([w for _, w in fc], [2000.0, 4000.0])
-        self.assertAlmostEqual(average_forecast(fc, NOW, 60), 3000.0)
-
-
+        self.assertEqual((decisions[0].action, decisions[0].mode), ("none", "unmanaged"))
 
 
 if __name__ == "__main__":

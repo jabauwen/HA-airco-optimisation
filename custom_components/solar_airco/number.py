@@ -1,4 +1,4 @@
-"""Number entities for the day and night setpoints."""
+"""Number entities for temperature setpoints and per-airco priority."""
 from __future__ import annotations
 
 from homeassistant.components.number import NumberMode, RestoreNumber
@@ -14,6 +14,7 @@ NUMBERS = {
     "min_temp": (10, 25, 0.5, NumberMode.BOX, UnitOfTemperature.CELSIUS, "mdi:thermometer-low"),
     "desired_temp": (10, 26, 0.5, NumberMode.BOX, UnitOfTemperature.CELSIUS, "mdi:thermometer"),
     "night_temp": (10, 26, 0.5, NumberMode.BOX, UnitOfTemperature.CELSIUS, "mdi:weather-night"),
+    "priority": (1, 10, 1, NumberMode.BOX, None, "mdi:sort-numeric-ascending"),
 }
 
 
@@ -44,7 +45,7 @@ class SettingNumber(SolarAircoEntity, RestoreNumber):
         return float(getattr(self.settings, self._key))
 
     def _store(self, value: float) -> None:
-        setattr(self.settings, self._key, float(value))
+        setattr(self.settings, self._key, int(value) if self._key == "priority" else float(value))
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

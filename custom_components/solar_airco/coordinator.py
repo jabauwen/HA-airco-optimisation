@@ -39,6 +39,7 @@ class AircoSettings:
     night_temp: float = 17.0
     day_start: time = time(8, 0)
     day_end: time = time(21, 0)
+    priority: int = 1
     enabled: bool = True
 
 
@@ -124,6 +125,7 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
                     night_temp=settings.night_temp,
                     day_start=settings.day_start,
                     day_end=settings.day_end,
+                    priority=settings.priority,
                 )
             )
             states[sid] = AircoState(

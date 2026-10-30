@@ -14,6 +14,7 @@ _spec.loader.exec_module(logic)
 
 AircoSpec = logic.AircoSpec
 AircoState = logic.AircoState
+DECISION_MODES = logic.DECISION_MODES
 in_day_period = logic.in_day_period
 plan = logic.plan
 
@@ -29,8 +30,10 @@ def spec(**kwargs):
         "night_temp": 17.0,
         "day_start": time(8),
         "day_end": time(21),
+        "priority": 1,
     }
     values.update(kwargs)
+    values["entity"] = kwargs.get("entity", f"climate.{values['name']}")
     return AircoSpec(**values)
 
 
@@ -46,6 +49,12 @@ def decision(current_setpoint, balance, **airco_options):
 
 
 class AircoLogicTests(unittest.TestCase):
+    def test_decision_modes_include_every_sensor_state(self):
+        self.assertEqual(
+            set(DECISION_MODES),
+            {"solar", "consuming", "balanced", "night", "hold", "unmanaged"},
+        )
+
     def test_solar_surplus_increases_setpoint_by_one_degree(self):
         result, info = decision(19.0, 1200)
         self.assertEqual((result.action, result.mode, result.setpoint), ("set", "solar", 20.0))
@@ -58,6 +67,62 @@ class AircoLogicTests(unittest.TestCase):
     def test_consumption_decreases_setpoint_by_one_degree(self):
         result, _ = decision(20.0, -100)
         self.assertEqual((result.mode, result.setpoint), ("consuming", 19.0))
+
+    def test_consumption_adjusts_lowest_priority_tier_first(self):
+        aircos = [
+            spec(name="kitchen", priority=1, min_temp=20.0),
+            spec(name="sitting_room", priority=2, min_temp=20.0),
+            spec(name="eating_room", priority=2, min_temp=20.0),
+            spec(name="bedroom", priority=3, min_temp=20.0),
+        ]
+        states = {
+            airco.name: AircoState("heat", 21.0)
+            for airco in aircos
+        }
+
+        def update():
+            return {
+                item.name: item
+                for item in plan(NOW, aircos, states, -100)[0]
+            }
+
+        first = update()
+        self.assertEqual(first["bedroom"].setpoint, 20.0)
+        self.assertEqual(first["bedroom"].action, "set")
+        for name in ("kitchen", "sitting_room", "eating_room"):
+            self.assertEqual(first[name].action, "none")
+
+        states["bedroom"].setpoint = 20.0
+        second = update()
+        self.assertEqual(second["sitting_room"].setpoint, 20.0)
+        self.assertEqual(second["eating_room"].setpoint, 20.0)
+        self.assertEqual(second["sitting_room"].action, "set")
+        self.assertEqual(second["eating_room"].action, "set")
+        self.assertEqual(second["kitchen"].action, "none")
+
+        states["sitting_room"].setpoint = 20.0
+        states["eating_room"].setpoint = 20.0
+        third = update()
+        self.assertEqual(third["kitchen"].setpoint, 20.0)
+        self.assertEqual(third["kitchen"].action, "set")
+
+    def test_solar_surplus_adjusts_highest_priority_first(self):
+        aircos = [
+            spec(name="kitchen", priority=1),
+            spec(name="bedroom", priority=3),
+        ]
+        states = {
+            airco.name: AircoState("heat", 19.0)
+            for airco in aircos
+        }
+        decisions = {
+            item.name: item
+            for item in plan(NOW, aircos, states, 100)[0]
+        }
+        self.assertEqual(decisions["kitchen"].setpoint, 20.0)
+        self.assertEqual(decisions["kitchen"].action, "set")
+        self.assertEqual(decisions["bedroom"].setpoint, 19.0)
+        self.assertEqual(decisions["bedroom"].action, "none")
 
     def test_consumption_never_decreases_below_minimum(self):
         result, _ = decision(18.0, -100)
@@ -91,7 +156,7 @@ class AircoLogicTests(unittest.TestCase):
             NOW,
             [airco],
             {"living_room": AircoState("off", 20.0)},
-            0,
+            100,
         )
         self.assertEqual(decisions[0].action, "set")
 

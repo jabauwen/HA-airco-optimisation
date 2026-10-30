@@ -68,7 +68,8 @@
     "number": {
       "min_temp": { "name": "Day minimum temperature" },
       "desired_temp": { "name": "Day desired temperature" },
-      "night_temp": { "name": "Night temperature" }
+      "night_temp": { "name": "Night temperature" },
+      "priority": { "name": "Priority" }
     },
     "time": {
       "day_start": { "name": "Day period start" },

@@ -9,6 +9,7 @@ from datetime import datetime, time
 from typing import Optional, Tuple
 
 MANAGED_MODES = ("off", "heat")
+DECISION_MODES = ("solar", "consuming", "balanced", "night", "hold", "unmanaged")
 
 
 @dataclass
@@ -20,6 +21,7 @@ class AircoSpec:
     night_temp: float
     day_start: time
     day_end: time
+    priority: int = 1
 
 
 @dataclass
@@ -63,6 +65,8 @@ def plan(
     solar_balance_w: Optional[float],
 ) -> Tuple[list[Decision], dict[str, Optional[float]]]:
     decisions: list[Decision] = []
+    eligible_priorities: list[tuple[int, str]] = []
+    specs_by_name = {spec.name: spec for spec in specs}
 
     for spec in specs:
         state = states[spec.name]
@@ -96,17 +100,21 @@ def plan(
                 target = min(desired, current + 1)
                 mode = "solar"
                 reason = "solar energy available"
+                if target > current:
+                    eligible_priorities.append((spec.priority, "solar"))
             elif solar_balance_w < 0:
                 target = max(minimum, current - 1)
                 mode = "consuming"
                 reason = "consuming energy"
+                if target < current:
+                    eligible_priorities.append((spec.priority, "consuming"))
             else:
                 target = current
                 mode = "balanced"
                 reason = "solar production matches consumption"
 
         changed = state.setpoint is None or abs(state.setpoint - target) >= 0.25
-        needs_heat_mode = state.hvac_mode == "off" and mode != "hold"
+        needs_heat_mode = state.hvac_mode == "off" and mode in ("solar", "night")
         action = "set" if changed or needs_heat_mode else "none"
         if mode == "hold":
             action = "none"
@@ -120,5 +128,33 @@ def plan(
                 reason,
             )
         )
+
+    if eligible_priorities:
+        direction = eligible_priorities[0][1]
+        selected_priority = (
+            min(priority for priority, _ in eligible_priorities)
+            if direction == "solar"
+            else max(priority for priority, _ in eligible_priorities)
+        )
+        for index, decision in enumerate(decisions):
+            spec = specs_by_name.get(decision.name)
+            if spec is None or spec.priority == selected_priority:
+                continue
+            if decision.mode != direction or decision.action != "set":
+                continue
+            state = states[decision.name]
+            current = state.setpoint
+            decisions[index] = Decision(
+                decision.name,
+                decision.entity,
+                "none",
+                decision.mode,
+                current,
+                (
+                    "waiting for higher-priority aircos to reach desired temperature"
+                    if direction == "solar"
+                    else "waiting for lower-priority aircos to reach minimum temperature"
+                ),
+            )
 
     return decisions, {"solar_balance_w": solar_balance_w}

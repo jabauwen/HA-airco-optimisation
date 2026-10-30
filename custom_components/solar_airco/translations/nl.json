@@ -68,7 +68,8 @@
     "number": {
       "min_temp": { "name": "Minimumtemperatuur overdag" },
       "desired_temp": { "name": "Gewenste temperatuur overdag" },
-      "night_temp": { "name": "Nachttemperatuur" }
+      "night_temp": { "name": "Nachttemperatuur" },
+      "priority": { "name": "Prioriteit" }
     },
     "time": {
       "day_start": { "name": "Start dagperiode" },

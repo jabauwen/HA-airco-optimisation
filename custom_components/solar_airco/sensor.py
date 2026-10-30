@@ -10,8 +10,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import SolarAircoConfigEntry, SolarAircoCoordinator
 from .entity import SolarAircoEntity
+from .logic import DECISION_MODES
 
-MODES = ["solar", "comfort", "off", "hold", "unmanaged"]
+MODES = list(DECISION_MODES)
 STATUSES = ["active", "dry_run", "disabled"]
 
 

@@ -77,7 +77,7 @@
     "switch": {
       "enabled": { "name": "Actief" },
       "dry_run": { "name": "Testmodus" },
-      "airco_enabled": { "name": "Aangestuurd" }
+      "airco_enabled": { "name": "Regeling ingeschakeld" }
     },
     "sensor": {
       "status": {

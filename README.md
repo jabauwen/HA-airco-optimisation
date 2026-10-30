@@ -21,7 +21,7 @@ For each airco, configure:
 | Day minimum temperature | Lowest day setpoint |
 | Day desired temperature | Highest day setpoint while solar power is available |
 | Night temperature | Fixed setpoint outside the day period |
-| Controlled | Enables or disables this airco's control |
+| Control enabled | Enables or disables automatic control of this airco |
 
 During the day, at each update, the controller raises the current setpoint by 1 °C when there is solar power left,
 up to the desired temperature. When the home is consuming power, it lowers the setpoint by 1 °C, but not below
@@ -38,7 +38,9 @@ The update interval is configurable from 1 to 60 minutes and defaults to one min
 
 Main device: *Enabled*, *Dry run*, *Status*, *Solar capacity left*.
 Each airco has *Day period start*, *Day period end*, *Day minimum temperature*, *Day desired temperature*,
-*Night temperature*, *Controlled*, and a *Mode* sensor with the intended action and setpoint.
+*Night temperature*, a *Control enabled* switch, and a *Mode* sensor with the intended action and setpoint.
+Turn off an airco's *Control enabled* switch to stop the controller managing that airco; other aircos remain
+under automatic control.
 
 ## Install
 

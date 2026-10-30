@@ -77,7 +77,7 @@
     "switch": {
       "enabled": { "name": "Enabled" },
       "dry_run": { "name": "Dry run" },
-      "airco_enabled": { "name": "Controlled" }
+      "airco_enabled": { "name": "Control enabled" }
     },
     "sensor": {
       "status": {

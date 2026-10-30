@@ -46,7 +46,7 @@ def _global_schema() -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_PV_POWER): _sensor_selector(device_class="power"),
-            vol.Optional(CONF_BASE_LOAD): _sensor_selector(device_class="power"),
+            vol.Optional(CONF_BASE_LOAD): _sensor_selector(),
             vol.Required(CONF_FALLBACK_BASE_LOAD, default=DEFAULT_FALLBACK_BASE_LOAD): _number_selector(
                 0, 10000, 10, "W"
             ),

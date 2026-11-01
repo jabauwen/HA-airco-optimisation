@@ -63,10 +63,33 @@ def plan(
     specs: list[AircoSpec],
     states: dict[str, AircoState],
     solar_balance_w: Optional[float],
+    increase_threshold_w: float = 0.0,
+    decrease_threshold_w: float = 0.0,
+    decrease_lock_minutes: float = 0.0,
+    last_increase: Optional[dict[str, datetime]] = None,
 ) -> Tuple[list[Decision], dict[str, Optional[float]]]:
+    """Plan setpoints; at most one day-time airco is adjusted per call.
+
+    Increase (balance above increase_threshold_w): the airco with the lowest
+    delta (setpoint - minimum) goes first. Decrease (grid consumption above
+    decrease_threshold_w): the highest delta goes first; aircos increased less
+    than decrease_lock_minutes ago are skipped. Ties are resolved by priority
+    (1 first when increasing, highest number first when decreasing), then by
+    list order.
+    """
+    last_increase = last_increase or {}
     decisions: list[Decision] = []
-    eligible_priorities: list[tuple[int, str]] = []
-    specs_by_name = {spec.name: spec for spec in specs}
+    # (decision index, spec, current setpoint) of managed aircos in their day period
+    day_aircos: list[tuple[int, AircoSpec, float]] = []
+
+    if solar_balance_w is None:
+        day_mode, day_reason = "hold", "solar balance unavailable"
+    elif solar_balance_w > increase_threshold_w:
+        day_mode, day_reason = "solar", "waiting for aircos with a lower temperature delta"
+    elif solar_balance_w < -decrease_threshold_w:
+        day_mode, day_reason = "consuming", "waiting for aircos with a higher temperature delta"
+    else:
+        day_mode, day_reason = "balanced", "solar balance within thresholds"
 
     for spec in specs:
         state = states[spec.name]
@@ -83,78 +106,52 @@ def plan(
             )
             continue
 
-        minimum = spec.min_temp
-        desired = max(minimum, spec.desired_temp)
         if not in_day_period(spec, now):
-            target = spec.night_temp
-            mode = "night"
-            reason = "night temperature"
-        elif solar_balance_w is None:
-            target = state.setpoint if state.setpoint is not None else minimum
-            mode = "hold"
-            reason = "solar balance unavailable"
-        else:
-            current = state.setpoint if state.setpoint is not None else minimum
-            current = max(minimum, min(desired, current))
-            if solar_balance_w > 0:
-                target = min(desired, current + 1)
-                mode = "solar"
-                reason = "solar energy available"
-                if target > current:
-                    eligible_priorities.append((spec.priority, "solar"))
-            elif solar_balance_w < 0:
-                target = max(minimum, current - 1)
-                mode = "consuming"
-                reason = "consuming energy"
-                if target < current:
-                    eligible_priorities.append((spec.priority, "consuming"))
-            else:
-                target = current
-                mode = "balanced"
-                reason = "solar production matches consumption"
-
-        changed = state.setpoint is None or abs(state.setpoint - target) >= 0.25
-        needs_heat_mode = state.hvac_mode == "off" and mode in ("solar", "night")
-        action = "set" if changed or needs_heat_mode else "none"
-        if mode == "hold":
-            action = "none"
-        decisions.append(
-            Decision(
-                spec.name,
-                spec.entity,
-                action,
-                mode,
-                target,
-                reason,
+            changed = state.setpoint is None or abs(state.setpoint - spec.night_temp) >= 0.25
+            action = "set" if changed or state.hvac_mode == "off" else "none"
+            decisions.append(
+                Decision(
+                    spec.name, spec.entity, action, "night", spec.night_temp, "night temperature"
+                )
             )
+            continue
+
+        current = state.setpoint if state.setpoint is not None else spec.min_temp
+        current = max(spec.min_temp, min(max(spec.min_temp, spec.desired_temp), current))
+        shown = state.setpoint if state.setpoint is not None else current
+        day_aircos.append((len(decisions), spec, current))
+        decisions.append(
+            Decision(spec.name, spec.entity, "none", day_mode, shown, day_reason)
         )
 
-    if eligible_priorities:
-        direction = eligible_priorities[0][1]
-        selected_priority = (
-            min(priority for priority, _ in eligible_priorities)
-            if direction == "solar"
-            else max(priority for priority, _ in eligible_priorities)
-        )
-        for index, decision in enumerate(decisions):
-            spec = specs_by_name.get(decision.name)
-            if spec is None or spec.priority == selected_priority:
-                continue
-            if decision.mode != direction or decision.action != "set":
-                continue
-            state = states[decision.name]
-            current = state.setpoint
+    if day_mode in ("solar", "consuming"):
+        candidates = []
+        for order, (index, spec, current) in enumerate(day_aircos):
+            delta = current - spec.min_temp
+            if day_mode == "solar":
+                if current < max(spec.min_temp, spec.desired_temp):
+                    candidates.append(((delta, spec.priority, order), index, spec, current))
+            elif current > spec.min_temp:
+                locked_at = last_increase.get(spec.name)
+                if (
+                    locked_at is not None
+                    and (now - locked_at).total_seconds() < decrease_lock_minutes * 60
+                ):
+                    decisions[index].reason = (
+                        "temperature was increased recently; decrease locked"
+                    )
+                    continue
+                candidates.append(((-delta, -spec.priority, order), index, spec, current))
+        if candidates:
+            _, index, spec, current = min(candidates, key=lambda item: item[0])
+            if day_mode == "solar":
+                target = min(max(spec.min_temp, spec.desired_temp), current + 1)
+                reason = "solar energy available"
+            else:
+                target = max(spec.min_temp, current - 1)
+                reason = "consuming energy"
             decisions[index] = Decision(
-                decision.name,
-                decision.entity,
-                "none",
-                decision.mode,
-                current,
-                (
-                    "waiting for higher-priority aircos to reach desired temperature"
-                    if direction == "solar"
-                    else "waiting for lower-priority aircos to reach minimum temperature"
-                ),
+                spec.name, spec.entity, "set", day_mode, target, reason
             )
 
     return decisions, {"solar_balance_w": solar_balance_w}

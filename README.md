@@ -21,16 +21,19 @@ For each airco, configure:
 | Day minimum temperature | Lowest day setpoint |
 | Day desired temperature | Highest day setpoint while solar power is available |
 | Night temperature | Fixed setpoint outside the day period |
-| Priority | Orders daytime adjustments; 1 is highest, larger numbers are reduced first |
+| Priority | Tie-breaker when aircos have the same temperature delta; 1 is increased first, larger numbers are decreased first |
 | Control enabled | Enables or disables automatic control of this airco |
 
-During the day, at each update, the controller raises the current setpoint by 1 °C when there is solar power left,
-up to the desired temperature. When the home is consuming power, it lowers the setpoint by 1 °C, but not below
-the minimum. If production matches consumption, the setpoint stays unchanged. At night, it applies the configured
-night temperature. Priority changes are applied in tiers: when consuming power, the highest-numbered priority
-with room to reduce is adjusted first; aircos sharing that priority are adjusted together. Once they reach their
-minimum, the next lower-numbered priority is adjusted. With solar surplus, the order is reversed: priority 1
-adjusts first, then subsequent priorities, with same-priority aircos adjusted together.
+During the day, at each update the controller changes **at most one airco by 1 °C**:
+
+- **Increase** only when the solar capacity left is above the *minimum solar surplus to increase* setting. The
+  airco with the lowest delta (current setpoint − day minimum) goes first, up to its desired temperature.
+- **Decrease** only when the grid consumption is above the *minimum grid consumption to decrease* setting. The
+  airco with the highest delta goes first, down to its minimum. An airco that was increased cannot be decreased
+  for the configured *decrease lock* minutes.
+- Between those thresholds nothing changes. At night, the configured night temperature is applied.
+- Ties on the delta are resolved by *Priority* (1 first when increasing, the highest number first when
+  decreasing), and then by the order of the aircos in the list.
 
 The update interval is configurable from 1 to 60 minutes and defaults to one minute. Aircos in modes other than
 `off` or `heat` are left untouched. An airco that is off is put into `heat` when a setpoint needs to be applied.
@@ -54,7 +57,7 @@ under automatic control.
 4. *Settings → Devices & services → Add integration → Solar Airco*.
    - PV production: a power sensor in W.
    - House consumption: a power sensor in W. If omitted or unavailable, the configured fallback is used.
-   - Set the update interval (one minute by default).
+   - Set the increase/decrease thresholds (W), the decrease lock (minutes) and the update interval (one minute by default).
 5. Use *Add airco* on the integration page for each climate entity.
 
 Repository: https://github.com/jabauwen/HA-airco-optimisation

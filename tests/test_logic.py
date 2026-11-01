@@ -2,7 +2,7 @@ import importlib.util
 import os
 import sys
 import unittest
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 _path = os.path.join(
     os.path.dirname(__file__), "..", "custom_components", "solar_airco", "logic.py"
@@ -68,61 +68,74 @@ class AircoLogicTests(unittest.TestCase):
         result, _ = decision(20.0, -100)
         self.assertEqual((result.mode, result.setpoint), ("consuming", 19.0))
 
-    def test_consumption_adjusts_lowest_priority_tier_first(self):
-        aircos = [
-            spec(name="kitchen", priority=1, min_temp=20.0),
-            spec(name="sitting_room", priority=2, min_temp=20.0),
-            spec(name="eating_room", priority=2, min_temp=20.0),
-            spec(name="bedroom", priority=3, min_temp=20.0),
-        ]
-        states = {
-            airco.name: AircoState("heat", 21.0)
-            for airco in aircos
-        }
+    def run_plan(self, aircos, setpoints, balance, **kwargs):
+        states = {a.name: AircoState("heat", setpoints[a.name]) for a in aircos}
+        return {d.name: d for d in plan(NOW, aircos, states, balance, **kwargs)[0]}
 
-        def update():
-            return {
-                item.name: item
-                for item in plan(NOW, aircos, states, -100)[0]
-            }
+    def changed(self, result):
+        return [name for name, d in result.items() if d.action == "set"]
 
-        first = update()
-        self.assertEqual(first["bedroom"].setpoint, 20.0)
-        self.assertEqual(first["bedroom"].action, "set")
-        for name in ("kitchen", "sitting_room", "eating_room"):
-            self.assertEqual(first[name].action, "none")
+    def test_only_one_airco_changes_per_update(self):
+        aircos = [spec(name="a"), spec(name="b"), spec(name="c")]
+        result = self.run_plan(aircos, {"a": 19.0, "b": 19.0, "c": 19.0}, 500)
+        self.assertEqual(self.changed(result), ["a"])
+        result = self.run_plan(aircos, {"a": 20.0, "b": 20.0, "c": 20.0}, -500)
+        self.assertEqual(self.changed(result), ["a"])
 
-        states["bedroom"].setpoint = 20.0
-        second = update()
-        self.assertEqual(second["sitting_room"].setpoint, 20.0)
-        self.assertEqual(second["eating_room"].setpoint, 20.0)
-        self.assertEqual(second["sitting_room"].action, "set")
-        self.assertEqual(second["eating_room"].action, "set")
-        self.assertEqual(second["kitchen"].action, "none")
+    def test_increase_lowest_delta_first(self):
+        aircos = [spec(name="a"), spec(name="b")]
+        result = self.run_plan(aircos, {"a": 20.0, "b": 19.0}, 500)
+        self.assertEqual(self.changed(result), ["b"])
+        self.assertEqual(result["b"].setpoint, 20.0)
 
-        states["sitting_room"].setpoint = 20.0
-        states["eating_room"].setpoint = 20.0
-        third = update()
-        self.assertEqual(third["kitchen"].setpoint, 20.0)
-        self.assertEqual(third["kitchen"].action, "set")
+    def test_decrease_highest_delta_first(self):
+        aircos = [spec(name="a"), spec(name="b")]
+        result = self.run_plan(aircos, {"a": 19.0, "b": 21.0}, -500)
+        self.assertEqual(self.changed(result), ["b"])
+        self.assertEqual(result["b"].setpoint, 20.0)
 
-    def test_solar_surplus_adjusts_highest_priority_first(self):
-        aircos = [
-            spec(name="kitchen", priority=1),
-            spec(name="bedroom", priority=3),
-        ]
-        states = {
-            airco.name: AircoState("heat", 19.0)
-            for airco in aircos
-        }
-        decisions = {
-            item.name: item
-            for item in plan(NOW, aircos, states, 100)[0]
-        }
-        self.assertEqual(decisions["kitchen"].setpoint, 20.0)
-        self.assertEqual(decisions["kitchen"].action, "set")
-        self.assertEqual(decisions["bedroom"].setpoint, 19.0)
-        self.assertEqual(decisions["bedroom"].action, "none")
+    def test_equal_delta_uses_priority(self):
+        aircos = [spec(name="a", priority=2), spec(name="b", priority=1)]
+        setpoints = {"a": 19.0, "b": 19.0}
+        self.assertEqual(self.changed(self.run_plan(aircos, setpoints, 500)), ["b"])
+        self.assertEqual(self.changed(self.run_plan(aircos, setpoints, -500)), ["a"])
+
+    def test_equal_delta_and_priority_uses_list_order(self):
+        aircos = [spec(name="a"), spec(name="b")]
+        setpoints = {"a": 19.0, "b": 19.0}
+        self.assertEqual(self.changed(self.run_plan(aircos, setpoints, 500)), ["a"])
+        self.assertEqual(self.changed(self.run_plan(aircos, setpoints, -500)), ["a"])
+
+    def test_full_airco_is_skipped_when_increasing(self):
+        aircos = [spec(name="a"), spec(name="b")]
+        result = self.run_plan(aircos, {"a": 21.0, "b": 19.0}, 500)
+        self.assertEqual(self.changed(result), ["b"])
+
+    def test_increase_needs_surplus_above_threshold(self):
+        result = self.run_plan([spec()], {"living_room": 19.0}, 300, increase_threshold_w=300)
+        self.assertEqual(self.changed(result), [])
+        result = self.run_plan([spec()], {"living_room": 19.0}, 301, increase_threshold_w=300)
+        self.assertEqual(self.changed(result), ["living_room"])
+
+    def test_decrease_needs_consumption_above_threshold(self):
+        result = self.run_plan([spec()], {"living_room": 20.0}, -200, decrease_threshold_w=200)
+        self.assertEqual(self.changed(result), [])
+        result = self.run_plan([spec()], {"living_room": 20.0}, -201, decrease_threshold_w=200)
+        self.assertEqual(self.changed(result), ["living_room"])
+
+    def test_decrease_locked_after_increase(self):
+        aircos = [spec(name="a"), spec(name="b")]
+        setpoints = {"a": 21.0, "b": 20.0}
+        last = {"a": NOW - timedelta(minutes=5)}
+        result = self.run_plan(
+            aircos, setpoints, -500, decrease_lock_minutes=10, last_increase=last
+        )
+        self.assertEqual(self.changed(result), ["b"])
+        last = {"a": NOW - timedelta(minutes=11)}
+        result = self.run_plan(
+            aircos, setpoints, -500, decrease_lock_minutes=10, last_increase=last
+        )
+        self.assertEqual(self.changed(result), ["a"])
 
     def test_consumption_never_decreases_below_minimum(self):
         result, _ = decision(18.0, -100)

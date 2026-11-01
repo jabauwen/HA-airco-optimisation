@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,10 +16,16 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_BASE_LOAD,
     CONF_CLIMATE,
+    CONF_DECREASE_LOCK_MINUTES,
+    CONF_DECREASE_THRESHOLD,
     CONF_FALLBACK_BASE_LOAD,
+    CONF_INCREASE_THRESHOLD,
     CONF_PV_POWER,
     CONF_UPDATE_INTERVAL_MINUTES,
+    DEFAULT_DECREASE_LOCK_MINUTES,
+    DEFAULT_DECREASE_THRESHOLD,
     DEFAULT_FALLBACK_BASE_LOAD,
+    DEFAULT_INCREASE_THRESHOLD,
     DEFAULT_UPDATE_INTERVAL_MINUTES,
     DOMAIN,
 )
@@ -69,6 +75,7 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
         )
         self.enabled = True
         self.dry_run = True
+        self.last_increase: dict[str, datetime] = {}
         self.settings: dict[str, AircoSettings] = {
             sid: AircoSettings() for sid in entry.subentries
         }
@@ -133,9 +140,47 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
                 setpoint=to_float(state.attributes.get("temperature")),
             )
 
-        planned, info = plan(now, specs, states, solar_balance)
+        planned, info = plan(
+            now,
+            specs,
+            states,
+            solar_balance,
+            float(cfg.get(CONF_INCREASE_THRESHOLD, DEFAULT_INCREASE_THRESHOLD)),
+            float(cfg.get(CONF_DECREASE_THRESHOLD, DEFAULT_DECREASE_THRESHOLD)),
+            float(cfg.get(CONF_DECREASE_LOCK_MINUTES, DEFAULT_DECREASE_LOCK_MINUTES)),
+            self.last_increase,
+        )
+        _LOGGER.info(
+            "Update (%s): pv=%s W, consumption=%s W, balance=%s W, "
+            "increase threshold=%s W, decrease threshold=%s W, decrease lock=%s min",
+            "dry run" if self.dry_run else "active",
+            pv,
+            base_load,
+            solar_balance,
+            cfg.get(CONF_INCREASE_THRESHOLD, DEFAULT_INCREASE_THRESHOLD),
+            cfg.get(CONF_DECREASE_THRESHOLD, DEFAULT_DECREASE_THRESHOLD),
+            cfg.get(CONF_DECREASE_LOCK_MINUTES, DEFAULT_DECREASE_LOCK_MINUTES),
+        )
         for decision in planned:
+            spec_state = states.get(decision.name)
+            spec = next((s for s in specs if s.name == decision.name), None)
+            _LOGGER.info(
+                "Decision %s (%s): mode=%s, action=%s, setpoint %s -> %s "
+                "(min=%s, desired=%s, priority=%s): %s",
+                decision.name,
+                decision.entity,
+                decision.mode,
+                decision.action,
+                spec_state.setpoint if spec_state else None,
+                decision.setpoint,
+                spec.min_temp if spec else None,
+                spec.desired_temp if spec else None,
+                spec.priority if spec else None,
+                decision.reason,
+            )
             decisions[decision.name] = decision
+            if decision.mode == "solar" and decision.action == "set":
+                self.last_increase[decision.name] = now
             if not self.dry_run:
                 await self._apply(decision)
 

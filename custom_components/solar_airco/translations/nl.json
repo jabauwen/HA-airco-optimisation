@@ -8,12 +8,18 @@
           "pv_power_entity": "PV-productie (W)",
           "base_load_entity": "Huisverbruik (W)",
           "fallback_base_load_w": "Terugvalwaarde huisverbruik (W)",
-          "update_interval_minutes": "Update-interval (minuten)"
+          "update_interval_minutes": "Update-interval (minuten)",
+          "increase_threshold_w": "Minimaal zonne-overschot om te verhogen (W)",
+          "decrease_threshold_w": "Minimaal netverbruik om te verlagen (W)",
+          "decrease_lock_minutes": "Verlaagblokkade na verhoging (minuten)"
         },
         "data_description": {
           "base_load_entity": "Wordt van de PV-productie afgetrokken om het zonnevermogen te berekenen. Leeg laten om de terugvalwaarde te gebruiken.",
           "fallback_base_load_w": "Wordt gebruikt wanneer de huisverbruikssensor niet is ingesteld of niet beschikbaar is.",
-          "update_interval_minutes": "De controller past het setpoint per update met maximaal 1 graad aan."
+          "update_interval_minutes": "De controller past het setpoint per update met maximaal 1 graad aan.",
+          "increase_threshold_w": "Een temperatuur wordt alleen verhoogd als de resterende zonnecapaciteit hoger is dan deze waarde.",
+          "decrease_threshold_w": "Een temperatuur wordt alleen verlaagd als het netverbruik hoger is dan deze waarde.",
+          "decrease_lock_minutes": "Na een verhoging mag de temperatuur zoveel minuten niet verlaagd worden."
         }
       }
     }
@@ -26,12 +32,18 @@
           "pv_power_entity": "PV-productie (W)",
           "base_load_entity": "Huisverbruik (W)",
           "fallback_base_load_w": "Terugvalwaarde huisverbruik (W)",
-          "update_interval_minutes": "Update-interval (minuten)"
+          "update_interval_minutes": "Update-interval (minuten)",
+          "increase_threshold_w": "Minimaal zonne-overschot om te verhogen (W)",
+          "decrease_threshold_w": "Minimaal netverbruik om te verlagen (W)",
+          "decrease_lock_minutes": "Verlaagblokkade na verhoging (minuten)"
         },
         "data_description": {
           "base_load_entity": "Wordt van de PV-productie afgetrokken om het zonnevermogen te berekenen. Leeg laten om de terugvalwaarde te gebruiken.",
           "fallback_base_load_w": "Wordt gebruikt wanneer de huisverbruikssensor niet is ingesteld of niet beschikbaar is.",
-          "update_interval_minutes": "De controller past het setpoint per update met maximaal 1 graad aan."
+          "update_interval_minutes": "De controller past het setpoint per update met maximaal 1 graad aan.",
+          "increase_threshold_w": "Een temperatuur wordt alleen verhoogd als de resterende zonnecapaciteit hoger is dan deze waarde.",
+          "decrease_threshold_w": "Een temperatuur wordt alleen verlaagd als het netverbruik hoger is dan deze waarde.",
+          "decrease_lock_minutes": "Na een verhoging mag de temperatuur zoveel minuten niet verlaagd worden."
         }
       }
     }
@@ -66,26 +78,50 @@
   },
   "entity": {
     "number": {
-      "min_temp": { "name": "Minimumtemperatuur overdag" },
-      "desired_temp": { "name": "Gewenste temperatuur overdag" },
-      "night_temp": { "name": "Nachttemperatuur" },
-      "priority": { "name": "Prioriteit" }
+      "min_temp": {
+        "name": "Minimumtemperatuur overdag"
+      },
+      "desired_temp": {
+        "name": "Gewenste temperatuur overdag"
+      },
+      "night_temp": {
+        "name": "Nachttemperatuur"
+      },
+      "priority": {
+        "name": "Prioriteit"
+      }
     },
     "time": {
-      "day_start": { "name": "Start dagperiode" },
-      "day_end": { "name": "Einde dagperiode" }
+      "day_start": {
+        "name": "Start dagperiode"
+      },
+      "day_end": {
+        "name": "Einde dagperiode"
+      }
     },
     "switch": {
-      "enabled": { "name": "Actief" },
-      "dry_run": { "name": "Testmodus" },
-      "airco_enabled": { "name": "Regeling ingeschakeld" }
+      "enabled": {
+        "name": "Actief"
+      },
+      "dry_run": {
+        "name": "Testmodus"
+      },
+      "airco_enabled": {
+        "name": "Regeling ingeschakeld"
+      }
     },
     "sensor": {
       "status": {
         "name": "Status",
-        "state": { "active": "Actief", "dry_run": "Testmodus", "disabled": "Uitgeschakeld" }
+        "state": {
+          "active": "Actief",
+          "dry_run": "Testmodus",
+          "disabled": "Uitgeschakeld"
+        }
       },
-      "solar_balance": { "name": "Beschikbaar zonnevermogen" },
+      "solar_balance": {
+        "name": "Beschikbaar zonnevermogen"
+      },
       "airco_mode": {
         "name": "Modus",
         "state": {

@@ -20,10 +20,16 @@ from .const import (
     CONF_AIRCO_NAME,
     CONF_BASE_LOAD,
     CONF_CLIMATE,
+    CONF_DECREASE_LOCK_MINUTES,
+    CONF_DECREASE_THRESHOLD,
     CONF_FALLBACK_BASE_LOAD,
+    CONF_INCREASE_THRESHOLD,
     CONF_PV_POWER,
     CONF_UPDATE_INTERVAL_MINUTES,
+    DEFAULT_DECREASE_LOCK_MINUTES,
+    DEFAULT_DECREASE_THRESHOLD,
     DEFAULT_FALLBACK_BASE_LOAD,
+    DEFAULT_INCREASE_THRESHOLD,
     DEFAULT_UPDATE_INTERVAL_MINUTES,
     DOMAIN,
     SUBENTRY_AIRCO,
@@ -50,6 +56,15 @@ def _global_schema() -> vol.Schema:
             vol.Required(CONF_FALLBACK_BASE_LOAD, default=DEFAULT_FALLBACK_BASE_LOAD): _number_selector(
                 0, 10000, 10, "W"
             ),
+            vol.Required(CONF_INCREASE_THRESHOLD, default=DEFAULT_INCREASE_THRESHOLD): _number_selector(
+                0, 10000, 10, "W"
+            ),
+            vol.Required(CONF_DECREASE_THRESHOLD, default=DEFAULT_DECREASE_THRESHOLD): _number_selector(
+                0, 10000, 10, "W"
+            ),
+            vol.Required(
+                CONF_DECREASE_LOCK_MINUTES, default=DEFAULT_DECREASE_LOCK_MINUTES
+            ): _number_selector(0, 1440, 1, "min"),
             vol.Required(
                 CONF_UPDATE_INTERVAL_MINUTES, default=DEFAULT_UPDATE_INTERVAL_MINUTES
             ): selector.NumberSelector(

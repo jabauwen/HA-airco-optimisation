@@ -8,12 +8,18 @@
           "pv_power_entity": "PV production (W)",
           "base_load_entity": "House consumption (W)",
           "fallback_base_load_w": "Fallback house consumption (W)",
-          "update_interval_minutes": "Update interval (minutes)"
+          "update_interval_minutes": "Update interval (minutes)",
+          "increase_threshold_w": "Minimum solar surplus to increase (W)",
+          "decrease_threshold_w": "Minimum grid consumption to decrease (W)",
+          "decrease_lock_minutes": "Decrease lock after increase (minutes)"
         },
         "data_description": {
           "base_load_entity": "Subtracted from PV production to calculate the solar balance. Leave empty to use the fallback value.",
           "fallback_base_load_w": "Used when the house consumption sensor is unavailable or not selected.",
-          "update_interval_minutes": "The controller changes a setpoint by at most 1 degree per update."
+          "update_interval_minutes": "The controller changes a setpoint by at most 1 degree per update.",
+          "increase_threshold_w": "A setpoint is only raised when the solar capacity left is above this value.",
+          "decrease_threshold_w": "A setpoint is only lowered when the grid consumption is above this value.",
+          "decrease_lock_minutes": "After a setpoint was raised, it cannot be lowered for this many minutes."
         }
       }
     }
@@ -26,12 +32,18 @@
           "pv_power_entity": "PV production (W)",
           "base_load_entity": "House consumption (W)",
           "fallback_base_load_w": "Fallback house consumption (W)",
-          "update_interval_minutes": "Update interval (minutes)"
+          "update_interval_minutes": "Update interval (minutes)",
+          "increase_threshold_w": "Minimum solar surplus to increase (W)",
+          "decrease_threshold_w": "Minimum grid consumption to decrease (W)",
+          "decrease_lock_minutes": "Decrease lock after increase (minutes)"
         },
         "data_description": {
           "base_load_entity": "Subtracted from PV production to calculate the solar balance. Leave empty to use the fallback value.",
           "fallback_base_load_w": "Used when the house consumption sensor is unavailable or not selected.",
-          "update_interval_minutes": "The controller changes a setpoint by at most 1 degree per update."
+          "update_interval_minutes": "The controller changes a setpoint by at most 1 degree per update.",
+          "increase_threshold_w": "A setpoint is only raised when the solar capacity left is above this value.",
+          "decrease_threshold_w": "A setpoint is only lowered when the grid consumption is above this value.",
+          "decrease_lock_minutes": "After a setpoint was raised, it cannot be lowered for this many minutes."
         }
       }
     }
@@ -66,26 +78,50 @@
   },
   "entity": {
     "number": {
-      "min_temp": { "name": "Day minimum temperature" },
-      "desired_temp": { "name": "Day desired temperature" },
-      "night_temp": { "name": "Night temperature" },
-      "priority": { "name": "Priority" }
+      "min_temp": {
+        "name": "Day minimum temperature"
+      },
+      "desired_temp": {
+        "name": "Day desired temperature"
+      },
+      "night_temp": {
+        "name": "Night temperature"
+      },
+      "priority": {
+        "name": "Priority"
+      }
     },
     "time": {
-      "day_start": { "name": "Day period start" },
-      "day_end": { "name": "Day period end" }
+      "day_start": {
+        "name": "Day period start"
+      },
+      "day_end": {
+        "name": "Day period end"
+      }
     },
     "switch": {
-      "enabled": { "name": "Enabled" },
-      "dry_run": { "name": "Dry run" },
-      "airco_enabled": { "name": "Control enabled" }
+      "enabled": {
+        "name": "Enabled"
+      },
+      "dry_run": {
+        "name": "Dry run"
+      },
+      "airco_enabled": {
+        "name": "Control enabled"
+      }
     },
     "sensor": {
       "status": {
         "name": "Status",
-        "state": { "active": "Active", "dry_run": "Dry run", "disabled": "Disabled" }
+        "state": {
+          "active": "Active",
+          "dry_run": "Dry run",
+          "disabled": "Disabled"
+        }
       },
-      "solar_balance": { "name": "Solar capacity left" },
+      "solar_balance": {
+        "name": "Solar capacity left"
+      },
       "airco_mode": {
         "name": "Mode",
         "state": {

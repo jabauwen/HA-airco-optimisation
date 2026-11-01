@@ -150,34 +150,23 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
             float(cfg.get(CONF_DECREASE_LOCK_MINUTES, DEFAULT_DECREASE_LOCK_MINUTES)),
             self.last_increase,
         )
-        _LOGGER.info(
-            "Update (%s): pv=%s W, consumption=%s W, balance=%s W, "
-            "increase threshold=%s W, decrease threshold=%s W, decrease lock=%s min",
-            "dry run" if self.dry_run else "active",
-            pv,
-            base_load,
-            solar_balance,
-            cfg.get(CONF_INCREASE_THRESHOLD, DEFAULT_INCREASE_THRESHOLD),
-            cfg.get(CONF_DECREASE_THRESHOLD, DEFAULT_DECREASE_THRESHOLD),
-            cfg.get(CONF_DECREASE_LOCK_MINUTES, DEFAULT_DECREASE_LOCK_MINUTES),
-        )
         for decision in planned:
-            spec_state = states.get(decision.name)
-            spec = next((s for s in specs if s.name == decision.name), None)
-            _LOGGER.info(
-                "Decision %s (%s): mode=%s, action=%s, setpoint %s -> %s "
-                "(min=%s, desired=%s, priority=%s): %s",
-                decision.name,
-                decision.entity,
-                decision.mode,
-                decision.action,
-                spec_state.setpoint if spec_state else None,
-                decision.setpoint,
-                spec.min_temp if spec else None,
-                spec.desired_temp if spec else None,
-                spec.priority if spec else None,
-                decision.reason,
-            )
+            if decision.action == "set":
+                spec_state = states.get(decision.name)
+                _LOGGER.info(
+                    "%s %s (%s): setpoint %s -> %s [%s mode; pv=%s W, consumption=%s W, "
+                    "balance=%s W]: %s",
+                    "Would update" if self.dry_run else "Updating",
+                    decision.name,
+                    decision.entity,
+                    spec_state.setpoint if spec_state else None,
+                    decision.setpoint,
+                    decision.mode,
+                    pv,
+                    base_load,
+                    solar_balance,
+                    decision.reason,
+                )
             decisions[decision.name] = decision
             if decision.mode == "solar" and decision.action == "set":
                 self.last_increase[decision.name] = now

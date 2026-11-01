@@ -144,12 +144,26 @@ def plan(
                 candidates.append(((-delta, -spec.priority, order), index, spec, current))
         if candidates:
             _, index, spec, current = min(candidates, key=lambda item: item[0])
+            delta = current - spec.min_temp
+            others = ", ".join(
+                f"{item[2].name} (delta {item[3] - item[2].min_temp:g}, priority {item[2].priority})"
+                for item in candidates
+                if item[1] != index
+            ) or "none"
             if day_mode == "solar":
                 target = min(max(spec.min_temp, spec.desired_temp), current + 1)
-                reason = "solar energy available"
+                reason = (
+                    f"solar surplus {solar_balance_w:g} W > {increase_threshold_w:g} W: "
+                    f"increase {current:g} -> {target:g} °C; lowest delta {delta:g} °C "
+                    f"(priority {spec.priority}); other candidates: {others}"
+                )
             else:
                 target = max(spec.min_temp, current - 1)
-                reason = "consuming energy"
+                reason = (
+                    f"grid consumption {-solar_balance_w:g} W > {decrease_threshold_w:g} W: "
+                    f"decrease {current:g} -> {target:g} °C; highest delta {delta:g} °C "
+                    f"(priority {spec.priority}); other candidates: {others}"
+                )
             decisions[index] = Decision(
                 spec.name, spec.entity, "set", day_mode, target, reason
             )

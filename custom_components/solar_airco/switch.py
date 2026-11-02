@@ -5,9 +5,11 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
+from .const import DOMAIN
 from .coordinator import SolarAircoConfigEntry, SolarAircoCoordinator
 from .entity import SolarAircoEntity
 
@@ -69,6 +71,31 @@ class AircoEnabledSwitch(_RestoredSwitch):
     def __init__(self, coordinator: SolarAircoCoordinator, subentry_id: str) -> None:
         super().__init__(coordinator, "airco_enabled", subentry_id)
         self._attr_icon = "mdi:air-conditioner"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        registry = er.async_get(self.hass)
+        attributes: dict[str, Any] = {
+            "airco_name": self.coordinator.config_entry.subentries[self.subentry_id].title,
+            "priority": self.settings.priority,
+            "night_temp": self.settings.night_temp,
+            "min_temp": self.settings.min_temp,
+            "desired_temp": self.settings.desired_temp,
+        }
+
+        for attribute, key in (
+            ("priority_entity", "priority"),
+            ("night_temp_entity", "night_temp"),
+            ("min_temp_entity", "min_temp"),
+            ("desired_temp_entity", "desired_temp"),
+        ):
+            entity_id = registry.async_get_entity_id(
+                "number", DOMAIN, f"{self.subentry_id}_{key}"
+            )
+            if entity_id is not None:
+                attributes[attribute] = entity_id
+
+        return attributes
 
     def _get(self) -> bool:
         return self.settings.enabled

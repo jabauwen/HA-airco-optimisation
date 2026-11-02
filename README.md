@@ -48,8 +48,9 @@ Each airco has *Day period start*, *Day period end*, *Day minimum temperature*, 
 *Night temperature*, *Priority*, a *Control enabled* switch, and a *Mode* sensor with the intended action and setpoint.
 Turn off an airco's *Control enabled* switch to stop the controller managing that airco; other aircos remain
 under automatic control.
-The *Mode* sensor also exposes the per-airco settings and their entity IDs as attributes, so dashboard table cards
-can display and edit the settings in one row per airco.
+The *Mode* sensor and *Control enabled* switch expose the per-airco settings and their entity IDs as attributes,
+so dashboard table cards can display and edit the settings in one row per airco. Using the switch as the row entity
+also keeps its displayed enabled state in sync immediately when it is toggled.
 
 ## Install
 

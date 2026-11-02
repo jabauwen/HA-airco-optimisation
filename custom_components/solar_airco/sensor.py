@@ -6,8 +6,10 @@ from typing import Any
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfPower
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import DOMAIN
 from .coordinator import SolarAircoConfigEntry, SolarAircoCoordinator
 from .entity import SolarAircoEntity
 from .logic import DECISION_MODES
@@ -75,7 +77,40 @@ class AircoModeSensor(SolarAircoEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        decision = self.decision
-        if decision is None:
+        if self.subentry_id is None:
             return None
-        return {"action": decision.action, "reason": decision.reason, "setpoint": decision.setpoint}
+
+        decision = self.decision
+        settings = self.settings
+        registry = er.async_get(self.hass)
+
+        attributes: dict[str, Any] = {
+            "airco_name": self.coordinator.config_entry.subentries[self.subentry_id].title,
+            "enabled": settings.enabled,
+            "enabled_label": "Aan" if settings.enabled else "Uit",
+            "priority": settings.priority,
+            "night_temp": settings.night_temp,
+            "min_temp": settings.min_temp,
+            "desired_temp": settings.desired_temp,
+        }
+        if decision is not None:
+            attributes.update(
+                action=decision.action,
+                reason=decision.reason,
+                setpoint=decision.setpoint,
+            )
+
+        for attribute, key, domain in (
+            ("enabled_entity", "airco_enabled", "switch"),
+            ("priority_entity", "priority", "number"),
+            ("night_temp_entity", "night_temp", "number"),
+            ("min_temp_entity", "min_temp", "number"),
+            ("desired_temp_entity", "desired_temp", "number"),
+        ):
+            entity_id = registry.async_get_entity_id(
+                domain, DOMAIN, f"{self.subentry_id}_{key}"
+            )
+            if entity_id is not None:
+                attributes[attribute] = entity_id
+
+        return attributes

@@ -158,6 +158,39 @@ class AircoLogicTests(unittest.TestCase):
         result, _ = decision(20.0, 1000, day_start=time(19), day_end=time(7))
         self.assertEqual((result.mode, result.setpoint), ("night", 17.0))
 
+    def test_day_minimum_is_applied_independent_of_solar_balance(self):
+        airco = spec(min_temp=20.0, night_temp=17.0, day_start=time(6, 45))
+        now = NOW.replace(hour=6, minute=45)
+
+        for balance in (None, -852.0, 0.0, 1000.0):
+            with self.subTest(balance=balance):
+                decisions, _ = plan(
+                    now,
+                    [airco],
+                    {"living_room": AircoState("heat", 17.0)},
+                    balance,
+                )
+                self.assertEqual(
+                    (decisions[0].action, decisions[0].setpoint),
+                    ("set", 20.0),
+                )
+
+    def test_day_minimum_is_applied_to_all_aircos_in_one_update(self):
+        aircos = [
+            spec(name="kitchen", min_temp=20.0, night_temp=17.0),
+            spec(name="living_room", min_temp=20.0, night_temp=17.0),
+        ]
+        result = self.run_plan(
+            aircos,
+            {"kitchen": 17.0, "living_room": 17.0},
+            -852.0,
+        )
+        self.assertEqual(self.changed(result), ["kitchen", "living_room"])
+        self.assertEqual(
+            {decision.setpoint for decision in result.values()},
+            {20.0},
+        )
+
     def test_day_period_can_cross_midnight(self):
         airco = spec(day_start=time(22), day_end=time(6))
         self.assertTrue(in_day_period(airco, NOW.replace(hour=23)))

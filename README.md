@@ -24,7 +24,9 @@ For each airco, configure:
 | Priority | Tie-breaker when aircos have the same temperature delta; 1 is increased first, larger numbers are decreased first |
 | Control enabled | Enables or disables automatic control of this airco |
 
-During the day, at each update the controller changes **at most one airco by 1 °C**:
+When the day period starts, every enabled airco below its day minimum is raised to that minimum, regardless
+of solar balance. During the day, at each update the controller then changes **at most one airco by 1 °C**
+for solar optimization:
 
 - **Increase** only when the solar capacity left is above the *minimum solar surplus to increase* setting. The
   airco with the lowest delta (current setpoint − day minimum) goes first, up to its desired temperature.

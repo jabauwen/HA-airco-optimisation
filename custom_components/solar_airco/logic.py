@@ -119,6 +119,22 @@ def plan(
         current = state.setpoint if state.setpoint is not None else spec.min_temp
         current = max(spec.min_temp, min(max(spec.min_temp, spec.desired_temp), current))
         shown = state.setpoint if state.setpoint is not None else current
+        if (
+            state.setpoint is not None
+            and state.setpoint < spec.min_temp - 0.25
+        ):
+            decisions.append(
+                Decision(
+                    spec.name,
+                    spec.entity,
+                    "set",
+                    day_mode,
+                    spec.min_temp,
+                    "day minimum temperature",
+                )
+            )
+            continue
+
         day_aircos.append((len(decisions), spec, current))
         decisions.append(
             Decision(spec.name, spec.entity, "none", day_mode, shown, day_reason)

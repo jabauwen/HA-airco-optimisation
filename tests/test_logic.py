@@ -196,7 +196,7 @@ class AircoLogicTests(unittest.TestCase):
         self.assertTrue(in_day_period(airco, NOW.replace(hour=23)))
         self.assertFalse(in_day_period(airco, NOW))
 
-    def test_off_airco_is_set_to_heat_mode(self):
+    def test_off_airco_is_planned_for_setpoint_control(self):
         airco = spec()
         decisions, _ = plan(
             NOW,

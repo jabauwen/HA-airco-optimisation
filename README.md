@@ -38,7 +38,8 @@ for solar optimization:
   decreasing), and then by the order of the aircos in the list.
 
 The update interval is configurable from 1 to 60 minutes and defaults to one minute. Aircos in modes other than
-`off` or `heat` are left untouched. An airco that is off is put into `heat` when a setpoint needs to be applied.
+`off` or `heat` are left untouched. The integration only changes setpoints; it never changes an airco's HVAC
+mode, so an airco that is off remains off.
 
 > **Dry run is on by default.** The integration reports the intended setpoint in each airco's *Mode* sensor
 > attributes (`action`, `reason`, and `setpoint`) until you turn the *Dry run* switch off.

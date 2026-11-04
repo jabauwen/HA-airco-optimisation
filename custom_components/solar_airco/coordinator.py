@@ -194,11 +194,6 @@ class SolarAircoCoordinator(DataUpdateCoordinator[PlanData]):
         state = self.hass.states.get(decision.entity)
         if state is None or state.state not in ("off", "heat"):
             return
-        if state.state == "off":
-            await self._call(
-                "set_hvac_mode",
-                {ATTR_ENTITY_ID: decision.entity, "hvac_mode": "heat"},
-            )
 
         low = to_float(state.attributes.get("min_temp"))
         high = to_float(state.attributes.get("max_temp"))
